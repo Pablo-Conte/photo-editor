@@ -1,5 +1,5 @@
 /*
- * Photo Editor - UI com dois painéis de imagem e filtros
+ * Photo Editor - UI com dois painéis de imagem e transformações por matrizes
  */
 package com.pakau.photo_editor.photoeditor;
 
@@ -35,9 +35,13 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
     private JLabel outputPlaceholderLabel;
     private JLabel statusLabel;
 
-    // Botões de filtro
+    // Botões de transformação
     private JButton btnTranslate;
-    
+    private JButton btnAmpliar;
+    private JButton btnReduzir;
+    private JButton btnRotacionar;
+    private JButton btnEspelharH;
+    private JButton btnEspelharV;
     private JButton btnLoadImage;
     private JButton btnSaveImage;
 
@@ -64,15 +68,12 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         setMinimumSize(new Dimension(1100, 720));
         setBackground(BG_DARK);
 
-        // ── Root panel ──────────────────────────────────────────────────────
         JPanel root = new JPanel(new BorderLayout(0, 0));
         root.setBackground(BG_DARK);
         setContentPane(root);
 
-        // ── Header ──────────────────────────────────────────────────────────
         root.add(buildHeader(), BorderLayout.NORTH);
 
-        // ── Centro: dois painéis de imagem ───────────────────────────────────
         JPanel center = new JPanel(new GridLayout(1, 2, 12, 0));
         center.setBackground(BG_DARK);
         center.setBorder(BorderFactory.createEmptyBorder(0, 20, 12, 20));
@@ -83,7 +84,6 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         center.add(outputPanel);
         root.add(center, BorderLayout.CENTER);
 
-        // ── Barra inferior: controles ────────────────────────────────────────
         root.add(buildControlBar(), BorderLayout.SOUTH);
 
         pack();
@@ -130,7 +130,6 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
             BorderFactory.createEmptyBorder(0, 0, 0, 0)
         ));
 
-        // Label do painel
         JPanel panelHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 10));
         panelHeader.setBackground(BG_PANEL);
         panelHeader.setBorder(new MatteBorder(0, 0, 1, 0, BORDER_COLOR));
@@ -141,7 +140,6 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         panelHeader.add(lbl);
         card.add(panelHeader, BorderLayout.NORTH);
 
-        // Área da imagem
         JPanel imageArea = new JPanel(new GridBagLayout());
         imageArea.setBackground(BG_CARD);
 
@@ -156,19 +154,13 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
                 "CLIQUE PARA CARREGAR<br/>JPG / PNG / BMP</span></center></html>"
             );
             inputPlaceholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
             imageArea.add(inputPlaceholderLabel);
 
-            // Clique para abrir arquivo
             imageArea.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             imageArea.addMouseListener(new MouseAdapter() {
                 @Override public void mouseClicked(MouseEvent e) { loadImage(); }
-                @Override public void mouseEntered(MouseEvent e) {
-                    imageArea.setBackground(new Color(42, 42, 52));
-                }
-                @Override public void mouseExited(MouseEvent e) {
-                    imageArea.setBackground(BG_CARD);
-                }
+                @Override public void mouseEntered(MouseEvent e) { imageArea.setBackground(new Color(42, 42, 52)); }
+                @Override public void mouseExited (MouseEvent e) { imageArea.setBackground(BG_CARD); }
             });
         } else {
             outputImageLabel = new JLabel();
@@ -178,10 +170,9 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
             outputPlaceholderLabel = new JLabel(
                 "<html><center><span style='font-size:28px'>🖼️</span><br/>" +
                 "<span style='color:#787890;font-size:11px;font-family:monospace'>" +
-                "RESULTADO APARECE AQUI<br/>SELECIONE UM FILTRO</span></center></html>"
+                "RESULTADO APARECE AQUI<br/>SELECIONE UMA TRANSFORMAÇÃO</span></center></html>"
             );
             outputPlaceholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
             imageArea.add(outputPlaceholderLabel);
         }
 
@@ -198,22 +189,29 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
             BorderFactory.createEmptyBorder(14, 24, 14, 24)
         ));
 
-        // Botões de filtro
-        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         filters.setOpaque(false);
 
-        JLabel filterLabel = new JLabel("FILTROS:");
+        JLabel filterLabel = new JLabel("TRANSFORMAÇÕES:");
         filterLabel.setFont(loadFont("Monospaced", Font.BOLD, 11));
         filterLabel.setForeground(TEXT_MUTED);
         filters.add(filterLabel);
 
-        btnTranslate = makeFilterButton("Transladar imagem", "TRANSLADAR");
+        btnTranslate  = makeFilterButton("Transladar",    "TRANSLADAR");
+        btnAmpliar    = makeFilterButton("Ampliar",        "AMPLIAR");
+        btnReduzir    = makeFilterButton("Reduzir",        "REDUZIR");
+        btnRotacionar = makeFilterButton("Rotacionar 45°", "ROTACIONAR");
+        btnEspelharH  = makeFilterButton("Espelhar H",     "ESPELHAR_H");
+        btnEspelharV  = makeFilterButton("Espelhar V",     "ESPELHAR_V");
 
-        filters.add(btnTranslate);
+        filters.add(btnAmpliar);
+        filters.add(btnReduzir);
+        filters.add(btnRotacionar);
+        filters.add(btnEspelharH);
+        filters.add(btnEspelharV);
 
         bar.add(filters, BorderLayout.CENTER);
 
-        // Botões de ação (carregar / salvar)
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         actions.setOpaque(false);
 
@@ -230,7 +228,7 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         return bar;
     }
 
-    // ── Fábrica de botões de filtro ─────────────────────────────────────────────
+    // ── Fábrica de botões ───────────────────────────────────────────────────────
     private JButton makeFilterButton(String text, String filterKey) {
         JButton btn = new JButton(text) {
             @Override protected void paintComponent(Graphics g) {
@@ -252,8 +250,7 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         btn.setContentAreaFilled(false);
         btn.setOpaque(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setPreferredSize(new Dimension(200, 36));
-
+        btn.setPreferredSize(new Dimension(130, 36));
         btn.addActionListener(e -> applyFilter(filterKey));
         btn.addMouseListener(new MouseAdapter() {
             @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
@@ -267,10 +264,7 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                Color bg = getModel().isRollover()
-                    ? color.brighter()
-                    : color;
-                g2.setColor(bg);
+                g2.setColor(getModel().isRollover() ? color.brighter() : color);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                 g2.dispose();
                 super.paintComponent(g);
@@ -291,7 +285,7 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         return btn;
     }
 
-    // ── Lógica: carregar imagem ─────────────────────────────────────────────────
+    // ── Carregar imagem ─────────────────────────────────────────────────────────
     private void loadImage() {
         JFileChooser chooser = new JFileChooser();
         chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
@@ -302,7 +296,6 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
                 originalImage = ImageIO.read(file);
                 filteredImage = null;
                 activeFilter  = null;
-
                 displayImage(originalImage, true);
                 clearOutput();
                 updateStatus("Carregado: " + file.getName()
@@ -316,12 +309,11 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         }
     }
 
-    // ── Lógica: salvar imagem ───────────────────────────────────────────────────
+    // ── Salvar imagem ───────────────────────────────────────────────────────────
     private void saveImage() {
         if (filteredImage == null) {
-            JOptionPane.showMessageDialog(this,
-                "Aplique um filtro antes de salvar.", "Aviso",
-                JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Aplique uma transformação antes de salvar.",
+                "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
         JFileChooser chooser = new JFileChooser();
@@ -342,77 +334,187 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         }
     }
 
-    // ── Lógica: aplicar filtro ──────────────────────────────────────────────────
+    // ── Aplicar transformação ───────────────────────────────────────────────────
     private void applyFilter(String filterKey) {
         if (originalImage == null) {
-            JOptionPane.showMessageDialog(this,
-                "Carregue uma imagem primeiro.", "Aviso",
-                JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
+                "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
         activeFilter = filterKey;
         repaintButtons();
 
-        // Roda em thread separada para não travar a UI
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override protected BufferedImage doInBackground() {
                 return switch (filterKey) {
-                    case "TRANSLADAR" -> translateImage(originalImage);
-                    default          -> originalImage;
+                    case "TRANSLADAR"  -> transladar(originalImage, 15, 10);
+                    case "AMPLIAR"     -> escalar(originalImage, 1.5, 1.5);
+                    case "REDUZIR"     -> escalar(originalImage, 0.5, 0.5);
+                    case "ROTACIONAR"  -> rotacionar(originalImage, 45);
+                    case "ESPELHAR_H"  -> espelharHorizontal(originalImage);
+                    case "ESPELHAR_V"  -> espelharVertical(originalImage);
+                    default            -> originalImage;
                 };
             }
             @Override protected void done() {
                 try {
                     filteredImage = get();
                     displayImage(filteredImage, false);
-                    updateStatus("Filtro aplicado: " + filterKey);
+                    updateStatus("Transformação aplicada: " + filterKey);
                 } catch (Exception ex) {
-                    logger.log(java.util.logging.Level.SEVERE, "Erro no filtro", ex);
+                    logger.log(java.util.logging.Level.SEVERE, "Erro na transformação", ex);
                 }
             }
         };
         worker.execute();
     }
 
-    // ── Filtros ────────────────────────────────────────────────────────────────    
-    private BufferedImage translateImage(BufferedImage src) {
-        int add = 150;
+    // ══════════════════════════════════════════════════════════════════════════
+    // TRANSFORMAÇÕES POR MULTIPLICAÇÃO DE MATRIZES
+    // ══════════════════════════════════════════════════════════════════════════
 
-        double[][] matrizTranslacao = {
-            {add, 0, 0},
-            {0, add, 0},
-            {0, 0, add}
-        };
-        
-        BufferedImage out = deepCopy(src);
-        
-        for (int y = 0; y < src.getHeight(); y++) {
-           for (int x = 0; x < src.getWidth(); x++) {
+    // ── Multiplica matriz 3x3 por vetor homogêneo [x, y, 1] ────────────────────
+    private double[] multiplicarMatrizVetor(double[][] m, double[] v) {
+        double[] resultado = new double[3];
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                resultado[i] += m[i][j] * v[j];
+        return resultado;
+    }
 
-               // Vetor homogêneo do pixel original
-               double[] pixel = {x, y, 1};
+    // ── Multiplica duas matrizes 3x3 ───────────────────────────────────────────
+    private double[][] multiplicarMatrizes(double[][] a, double[][] b) {
+        double[][] resultado = new double[3][3];
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                for (int k = 0; k < 3; k++)
+                    resultado[i][j] += a[i][k] * b[k][j];
+        return resultado;
+    }
 
-               // Multiplica matriz * pixel
-               double[] resultado = new double[3];
-               for (int i = 0; i < 3; i++) {
-                   for (int j = 0; j < 3; j++) {
-                       resultado[i] += matrizTranslacao[i][j] * pixel[j];
-                   }
-               }
+    // ── Aplica uma matriz de transformação em cada pixel da imagem ──────────────
+    private BufferedImage aplicarTransformacao(BufferedImage src, double[][] matriz) {
+        int w = src.getWidth();
+        int h = src.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 
-               int novoX = (int) resultado[0];
-               int novoY = (int) resultado[1];
-
-               if (novoX < src.getWidth() && novoY < src.getHeight()) {
-                   out.setRGB(novoX, novoY, src.getRGB(x, y));
-               }
-           }
-   }
-
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                double[] resultado = multiplicarMatrizVetor(matriz, new double[]{x, y, 1});
+                int novoX = (int) resultado[0];
+                int novoY = (int) resultado[1];
+                if (novoX >= 0 && novoX < w && novoY >= 0 && novoY < h)
+                    out.setRGB(novoX, novoY, src.getRGB(x, y));
+            }
+        }
         return out;
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────────
+    // ── Translação ───────────────────────────────────────────────────────────────
+    // Move a imagem tx pixels para direita e ty pixels para baixo
+    //
+    // | 1  0  tx |   | x |   | x + tx |
+    // | 0  1  ty | * | y | = | y + ty |
+    // | 0  0   1 |   | 1 |   |   1    |
+    private BufferedImage transladar(BufferedImage src, int tx, int ty) {
+        double[][] matriz = {
+            {1, 0, tx},
+            {0, 1, ty},
+            {0, 0,  1}
+        };
+        return aplicarTransformacao(src, matriz);
+    }
+
+    // ── Escala (Ampliação / Redução) ─────────────────────────────────────────────
+    // sx e sy > 1 ampliam, entre 0 e 1 reduzem
+    //
+    // | sx  0  0 |   | x |   | x * sx |
+    // |  0 sy  0 | * | y | = | y * sy |
+    // |  0  0  1 |   | 1 |   |   1    |
+    private BufferedImage escalar(BufferedImage src, double sx, double sy) {
+        double[][] matriz = {
+            {sx,  0, 0},
+            { 0, sy, 0},
+            { 0,  0, 1}
+        };
+        return aplicarTransformacao(src, matriz);
+    }
+
+    // ── Rotação ──────────────────────────────────────────────────────────────────
+    // Rotaciona em torno do centro da imagem no ângulo informado (em graus)
+    // Combina 3 matrizes: translada para origem → rotaciona → volta ao centro
+    //
+    // | cos θ  -sen θ  0 |
+    // | sen θ   cos θ  0 |
+    // |   0       0    1 |
+    private BufferedImage rotacionar(BufferedImage src, double angulo) {
+        double rad = Math.toRadians(angulo);
+        double cos = Math.cos(rad);
+        double sen = Math.sin(rad);
+        int cx = src.getWidth()  / 2;
+        int cy = src.getHeight() / 2;
+
+        // 1) Leva o centro da imagem para a origem (0,0)
+        double[][] paraCentro = {
+            {1, 0, -cx},
+            {0, 1, -cy},
+            {0, 0,   1}
+        };
+        // 2) Rotaciona em torno da origem
+        double[][] rotacao = {
+            {cos, -sen, 0},
+            {sen,  cos, 0},
+            {  0,    0, 1}
+        };
+        // 3) Devolve de volta para o centro
+        double[][] voltarCentro = {
+            {1, 0, cx},
+            {0, 1, cy},
+            {0, 0,  1}
+        };
+
+        // Combina as três em uma única matriz
+        double[][] matriz = multiplicarMatrizes(voltarCentro,
+                                multiplicarMatrizes(rotacao, paraCentro));
+        return aplicarTransformacao(src, matriz);
+    }
+
+    // ── Espelhamento horizontal ───────────────────────────────────────────────────
+    // Inverte da esquerda para direita
+    //
+    // | -1  0  w-1 |   | x |   | (w-1) - x |
+    // |  0  1   0  | * | y | = |     y     |
+    // |  0  0   1  |   | 1 |   |     1     |
+    private BufferedImage espelharHorizontal(BufferedImage src) {
+        int w = src.getWidth();
+        double[][] matriz = {
+            {-1, 0, w - 1},
+            { 0, 1,     0},
+            { 0, 0,     1}
+        };
+        return aplicarTransformacao(src, matriz);
+    }
+
+    // ── Espelhamento vertical ─────────────────────────────────────────────────────
+    // Inverte de cima para baixo
+    //
+    // |  1  0    0  |   | x |   |     x     |
+    // |  0 -1  h-1  | * | y | = | (h-1) - y |
+    // |  0  0    1  |   | 1 |   |     1     |
+    private BufferedImage espelharVertical(BufferedImage src) {
+        int h = src.getHeight();
+        double[][] matriz = {
+            {1,  0,     0},
+            {0, -1, h - 1},
+            {0,  0,     1}
+        };
+        return aplicarTransformacao(src, matriz);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════════════════════════════════════
+
     private BufferedImage deepCopy(BufferedImage bi) {
         ColorModel cm = bi.getColorModel();
         boolean isAlpha = cm.isAlphaPremultiplied();
@@ -427,7 +529,6 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         int pw = area.getWidth()  > 0 ? area.getWidth()  - 20 : 500;
         int ph = area.getHeight() > 0 ? area.getHeight() - 20 : 440;
 
-        // Escala mantendo proporção
         double scale = Math.min((double) pw / img.getWidth(), (double) ph / img.getHeight());
         int w = (int)(img.getWidth()  * scale);
         int h = (int)(img.getHeight() * scale);
@@ -459,11 +560,9 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
 
     private JPanel getImageArea(boolean isInput) {
         JPanel card = isInput ? inputPanel : outputPanel;
-        // O centro do card é o imageArea
-        for (Component c : card.getComponents()) {
+        for (Component c : card.getComponents())
             if (c instanceof JPanel && ((JPanel) c).getLayout() instanceof GridBagLayout)
                 return (JPanel) c;
-        }
         return null;
     }
 
@@ -474,10 +573,30 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
     private void repaintButtons() {
         SwingUtilities.invokeLater(() -> {
             btnTranslate.repaint();
+            btnAmpliar.repaint();
+            btnReduzir.repaint();
+            btnRotacionar.repaint();
+            btnEspelharH.repaint();
+            btnEspelharV.repaint();
         });
     }
 
     private Font loadFont(String name, int style, int size) {
         return new Font(name, style, size);
+    }
+
+    // ── Main ────────────────────────────────────────────────────────────────────
+    public static void main(String[] args) {
+        try {
+            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
+                if ("Nimbus".equals(info.getName())) {
+                    UIManager.setLookAndFeel(info.getClassName());
+                    break;
+                }
+            }
+        } catch (ReflectiveOperationException | UnsupportedLookAndFeelException ex) {
+            logger.log(java.util.logging.Level.SEVERE, null, ex);
+        }
+        java.awt.EventQueue.invokeLater(() -> new PhotoEditorFrame().setVisible(true));
     }
 }
