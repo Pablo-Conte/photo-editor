@@ -261,8 +261,8 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         }
         inner.add(Box.createVerticalStrut(13));
 
-        // ── VIZINHANÇA ───────────────────────────────────────────────────────
-        addSection(inner, "VIZINHANÇA");
+        // ── PASSA BAIXA ───────────────────────────────────────────────────────
+        addSection(inner, "PASSA BAIXA");
         inner.add(Box.createVerticalStrut(4));
 
         btnConvolucao = makeFilterButton("⊞  Convolução", "CONVOLUCAO");
@@ -277,7 +277,7 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         inner.add(Box.createVerticalStrut(13));
 
         // ── DETECÇÃO DE BORDAS ───────────────────────────────────────────────
-        addSection(inner, "DETECÇÃO DE BORDAS");
+        addSection(inner, "PASSA-ALTA");
         inner.add(Box.createVerticalStrut(6));
 
         // ── Roberts ──────────────────────────────────────────────────────────
@@ -374,6 +374,9 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         addSideBtn(inner, btnCanny);
         inner.add(Box.createVerticalStrut(13));
 
+        addSection(inner, "TRANSFORMÇÕES PONTUAIS");
+        inner.add(Box.createVerticalStrut(6));
+
         // ── BRILHO ───────────────────────────────────────────────────────────
         addSection(inner, "BRILHO");
         inner.add(Box.createVerticalStrut(4));
@@ -423,19 +426,17 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         inner.add(Box.createVerticalStrut(3));
         inner.add(hint);
-        inner.add(Box.createVerticalStrut(13));
-
+        inner.add(Box.createVerticalStrut(16));
         inner.add(Box.createVerticalGlue());
 
         JScrollPane scroll = new JScrollPane(inner,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setPreferredSize(new Dimension(220, 0));
+        scroll.setPreferredSize(new Dimension(250, 0));
         scroll.setBorder(new MatteBorder(0, 0, 0, 1, BORDER_COLOR));
         scroll.getViewport().setBackground(BG_PANEL);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
-        scroll.getVerticalScrollBar().setBorder(BorderFactory.createEmptyBorder());
-
+        scroll.getVerticalScrollBar().setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 0));
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(BG_PANEL);
         wrapper.add(scroll);
