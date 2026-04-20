@@ -1,4 +1,4 @@
-package com.pakau.photo_editor.photoeditor;
+package pdi.pablokaue;
 
 import javax.swing.*;
 import javax.swing.border.*;
@@ -13,7 +13,7 @@ import javax.imageio.ImageIO;
 /**
  * @author 0414249
  */
-public class PhotoEditorFrame extends javax.swing.JFrame {
+public class PhotoEditorFrame extends JFrame {
 
     private static final java.util.logging.Logger logger =
             java.util.logging.Logger.getLogger(PhotoEditorFrame.class.getName());
@@ -96,7 +96,7 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
 
     private void initComponents() {
         setTitle("FOTO EDITOR — v2.0");
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setMinimumSize(new Dimension(1200, 720));
         setBackground(BG_DARK);
 
@@ -1277,18 +1277,5 @@ public class PhotoEditorFrame extends javax.swing.JFrame {
                     btnBrilho, btnContraste
             }) if (b != null) b.repaint();
         });
-    }
-
-    // ── Main ─────────────────────────────────────────────────────────────────────
-    public static void main(String[] args) {
-        try {
-            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels())
-                if ("Nimbus".equals(info.getName())) {
-                    UIManager.setLookAndFeel(info.getClassName()); break;
-                }
-        } catch (ReflectiveOperationException | UnsupportedLookAndFeelException ex) {
-            logger.log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        java.awt.EventQueue.invokeLater(() -> new PhotoEditorFrame().setVisible(true));
     }
 }
