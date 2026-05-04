@@ -51,29 +51,31 @@ public class PhotoEditorFrame extends JFrame {
     private JLabel  valBrilho,    valContraste,    valThreshold;
 
     // ── Sliders de bordas ───────────────────────────────────────────────────────
-    // Roberts — limiar de magnitude (0–255 após normalização, default 30)
     private JSlider sliderRobertsThresh;
     private JLabel  valRobertsThresh;
 
-    // Sobel — limiar de magnitude (0–255, default 60)
     private JSlider sliderSobelThresh;
     private JLabel  valSobelThresh;
 
-    // Robinson — limiar de magnitude (0–255, default 30)
     private JSlider sliderRobinsonThresh;
     private JLabel  valRobinsonThresh;
 
-    // Frei-Chen — limiar de projeção ×100, range 0–100 (default 30 → 0.30)
     private JSlider sliderFreiChenThresh;
     private JLabel  valFreiChenThresh;
 
-    // Marr-Hildreth — sigma ×10, range 5–30 (default 14 → 1.4)
     private JSlider sliderMarrSigma;
     private JLabel  valMarrSigma;
 
-    // Canny — limiar baixo e alto (0–255)
     private JSlider sliderCannyLow, sliderCannyHigh;
     private JLabel  valCannyLow,    valCannyHigh;
+
+    // ── Morfologia ──────────────────────────────────────────────────────────────
+    private String selectedStructElement = null;
+    private BufferedImage morphBaseImage = null;
+    private JSlider sliderMorphIter;
+    private JLabel  valMorphIter;
+    private JButton btnErosao, btnDilatacao, btnAbertura, btnFechamento, btnMorphReset;
+    private JButton[] seButtons;
 
     // Cores do tema
     private static final Color BG_DARK      = new Color(15, 15, 19);
@@ -280,8 +282,6 @@ public class PhotoEditorFrame extends JFrame {
         addSection(inner, "PASSA-ALTA");
         inner.add(Box.createVerticalStrut(6));
 
-        // ── Roberts ──────────────────────────────────────────────────────────
-        // limiar: após normalizar a magnitude para 0–255, pixels >= limiar → borda
         sliderRobertsThresh = makeSlider(0, 255, 30);
         valRobertsThresh    = makeValLabel("30");
         sliderRobertsThresh.addChangeListener(e -> {
@@ -292,8 +292,6 @@ public class PhotoEditorFrame extends JFrame {
         addSliderBlockLabeled(inner, "limiar", sliderRobertsThresh, valRobertsThresh, btnRoberts);
         inner.add(Box.createVerticalStrut(10));
 
-        // ── Sobel ────────────────────────────────────────────────────────────
-        // limiar: mesma lógica que Roberts, mas Sobel gera magnitudes maiores
         sliderSobelThresh = makeSlider(0, 255, 60);
         valSobelThresh    = makeValLabel("60");
         sliderSobelThresh.addChangeListener(e -> {
@@ -304,8 +302,6 @@ public class PhotoEditorFrame extends JFrame {
         addSliderBlockLabeled(inner, "limiar", sliderSobelThresh, valSobelThresh, btnSobel);
         inner.add(Box.createVerticalStrut(10));
 
-        // ── Robinson ─────────────────────────────────────────────────────────
-        // limiar: máximo entre as 8 direções, normalizado para 0–255
         sliderRobinsonThresh = makeSlider(0, 255, 30);
         valRobinsonThresh    = makeValLabel("30");
         sliderRobinsonThresh.addChangeListener(e -> {
@@ -316,9 +312,6 @@ public class PhotoEditorFrame extends JFrame {
         addSliderBlockLabeled(inner, "limiar", sliderRobinsonThresh, valRobinsonThresh, btnRobinson);
         inner.add(Box.createVerticalStrut(10));
 
-        // ── Frei-Chen ────────────────────────────────────────────────────────
-        // limiar%: projeção no subespaço de borda em %, range 0–100
-        // valor baixo = detecta mais bordas; valor alto = apenas bordas fortes
         sliderFreiChenThresh = makeSlider(0, 100, 30);
         valFreiChenThresh    = makeValLabel("30%");
         sliderFreiChenThresh.addChangeListener(e -> {
@@ -329,9 +322,6 @@ public class PhotoEditorFrame extends JFrame {
         addSliderBlockLabeled(inner, "limiar%", sliderFreiChenThresh, valFreiChenThresh, btnFreiChen);
         inner.add(Box.createVerticalStrut(10));
 
-        // ── Marr-Hildreth ────────────────────────────────────────────────────
-        // sigma: desvio padrão do Gaussiano (×10 para usar inteiro no slider)
-        // sigma pequeno = bordas finas/detalhadas; sigma grande = bordas grosseiras
         sliderMarrSigma = makeSlider(5, 30, 14);
         valMarrSigma    = makeValLabel("1.4");
         sliderMarrSigma.addChangeListener(e -> {
@@ -342,10 +332,6 @@ public class PhotoEditorFrame extends JFrame {
         addSliderBlockLabeled(inner, "sigma", sliderMarrSigma, valMarrSigma, btnMarrHildreth);
         inner.add(Box.createVerticalStrut(10));
 
-        // ── Canny ────────────────────────────────────────────────────────────
-        // low:  bordas fracas (candidatas)  — ficam brancas só se tocam uma borda forte
-        // high: bordas fortes (confirmadas) — sempre brancas
-        // restrição: low <= high (aplicada nos listeners)
         sliderCannyLow  = makeSlider(0, 254, 50);
         valCannyLow     = makeValLabel("50");
         sliderCannyHigh = makeSlider(1, 255, 150);
@@ -427,6 +413,10 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(3));
         inner.add(hint);
         inner.add(Box.createVerticalStrut(16));
+
+        // ── MORFOLOGIA ───────────────────────────────────────────────────────
+        buildMorphologySection(inner);
+
         inner.add(Box.createVerticalGlue());
 
         JScrollPane scroll = new JScrollPane(inner,
@@ -460,7 +450,6 @@ public class PhotoEditorFrame extends JFrame {
         parent.add(line);
     }
 
-    /** Rótulo pequeno de parâmetro (ex: "limiar", "sigma", "low thresh") */
     private void addSubLabel(JPanel parent, String text) {
         JLabel lbl = new JLabel(text);
         lbl.setFont(new Font("Monospaced", Font.PLAIN, 9));
@@ -470,7 +459,6 @@ public class PhotoEditorFrame extends JFrame {
         parent.add(Box.createVerticalStrut(1));
     }
 
-    /** Linha única: slider + label de valor numérico */
     private void addSliderRow(JPanel parent, JSlider slider, JLabel val) {
         JPanel row = new JPanel(new BorderLayout(4, 0));
         row.setOpaque(false);
@@ -482,7 +470,6 @@ public class PhotoEditorFrame extends JFrame {
         parent.add(row);
     }
 
-    /** Bloco: rótulo + slider + botão aplicar */
     private void addSliderBlockLabeled(JPanel parent, String label,
                                        JSlider slider, JLabel val, JButton btn) {
         addSubLabel(parent, label);
@@ -491,7 +478,6 @@ public class PhotoEditorFrame extends JFrame {
         addSideBtn(parent, btn);
     }
 
-    /** Bloco padrão sem rótulo extra: slider + botão */
     private void addSliderBlock(JPanel parent, JSlider slider, JLabel val, JButton btn) {
         addSliderRow(parent, slider, val);
         parent.add(Box.createVerticalStrut(4));
@@ -597,6 +583,9 @@ public class PhotoEditorFrame extends JFrame {
                 originalImage = ImageIO.read(file);
                 filteredImage = null;
                 activeFilter  = null;
+                morphBaseImage = null;
+                selectedStructElement = null;
+                if (seButtons != null) for (JButton b : seButtons) b.repaint();
                 displayImage(originalImage, true);
                 clearOutput();
                 updateStatus(file.getName() + "  —  " +
@@ -651,7 +640,6 @@ public class PhotoEditorFrame extends JFrame {
     private void applyFilterAsync(String filterKey) {
         if (originalImage == null) return;
 
-        // Captura todos os valores dos sliders na EDT antes de entrar na thread
         final int    vBrilho            = sliderBrilho.getValue();
         final int    vContraste         = sliderContraste.getValue();
         final int    vThreshold         = sliderThreshold.getValue();
@@ -666,28 +654,24 @@ public class PhotoEditorFrame extends JFrame {
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override protected BufferedImage doInBackground() {
                 return switch (filterKey) {
-                    // Geométrico
                     case "TRANSLADAR"    -> transladar(originalImage, 15, 10);
                     case "AMPLIAR"       -> escalar(originalImage, 1.5, 1.5);
                     case "REDUZIR"       -> escalar(originalImage, 0.5, 0.5);
                     case "ROTACIONAR"    -> rotacionar(originalImage, 45);
                     case "ESPELHAR_H"    -> espelharHorizontal(originalImage);
                     case "ESPELHAR_V"    -> espelharVertical(originalImage);
-                    // Vizinhança
                     case "CONVOLUCAO"    -> convolucao(originalImage, new float[][]{
                             {1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f}
                     });
                     case "MEDIANA"       -> mediana(originalImage, 3);
                     case "MODA"          -> moda(originalImage, 3);
                     case "GAUSS"         -> gaussiano(originalImage, 3, 1.0);
-                    // Bordas — parâmetros dos sliders
                     case "ROBERTS"       -> robertsCross(originalImage, vRobertsThresh);
                     case "SOBEL"         -> sobel(originalImage, vSobelThresh);
                     case "ROBINSON"      -> robinsonCompass(originalImage, vRobinsonThresh);
                     case "FREI_CHEN"     -> freiChen(originalImage, vFreiChenThresh);
                     case "MARR_HILDRETH" -> marrHildreth(originalImage, 5, vMarrSigma);
                     case "CANNY"         -> canny(originalImage, vCannyLow, vCannyHigh);
-                    // Cor
                     case "BRILHO"        -> brilho(originalImage, vBrilho);
                     case "CONTRASTE"     -> contraste(originalImage, vContraste);
                     case "THRESHOLD"     -> threshold(originalImage, vThreshold);
@@ -867,10 +851,9 @@ public class PhotoEditorFrame extends JFrame {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // DETECÇÃO DE BORDAS — utilitários compartilhados
+    // DETECÇÃO DE BORDAS
     // ══════════════════════════════════════════════════════════════════════════
 
-    /** Luminância BT.601: array [h][w] com valores 0–255. */
     private int[][] toGray(BufferedImage src) {
         int w = src.getWidth(), h = src.getHeight();
         int[][] gray = new int[h][w];
@@ -884,12 +867,6 @@ public class PhotoEditorFrame extends JFrame {
         return gray;
     }
 
-    /**
-     * Converte magnitudes double[][] para imagem ARGB.
-     *
-     * @param thresh  >= 0 → binarização: pixels (normalizados a 0–255) >= thresh ficam brancos.
-     *                < 0  → normalização contínua 0–255.
-     */
     private BufferedImage magnitudeToImage(double[][] mag, BufferedImage src, double thresh) {
         int h = mag.length, w = mag[0].length;
         double maxVal = 1e-10;
@@ -908,15 +885,6 @@ public class PhotoEditorFrame extends JFrame {
         return out;
     }
 
-    // ── Roberts Cross ────────────────────────────────────────────────────────────
-    /**
-     * Gradiente diagonal 2×2.
-     *   Gx = p(x,y) − p(x+1,y+1)
-     *   Gy = p(x+1,y) − p(x,y+1)
-     *   magnitude = sqrt(Gx² + Gy²)
-     *
-     * @param thresh  limiar de magnitude (0–255 normalizado). 0 = tudo borda, 255 = nada.
-     */
     private BufferedImage robertsCross(BufferedImage src, int thresh) {
         int[][] g = toGray(src);
         int h = g.length, w = g[0].length;
@@ -930,13 +898,6 @@ public class PhotoEditorFrame extends JFrame {
         return magnitudeToImage(mag, src, thresh);
     }
 
-    // ── Sobel ────────────────────────────────────────────────────────────────────
-    /**
-     * Gradiente 3×3 com ponderação central ±2.
-     *   magnitude = sqrt(Gx² + Gy²)
-     *
-     * @param thresh  limiar de magnitude (0–255 normalizado).
-     */
     private BufferedImage sobel(BufferedImage src, int thresh) {
         int[][] g = toGray(src);
         int h = g.length, w = g[0].length;
@@ -953,25 +914,19 @@ public class PhotoEditorFrame extends JFrame {
         return magnitudeToImage(mag, src, thresh);
     }
 
-    // ── Robinson Compass ─────────────────────────────────────────────────────────
-    /**
-     * 8 máscaras direcionais — magnitude = máximo entre as 8 respostas.
-     *
-     * @param thresh  limiar de magnitude (0–255 normalizado).
-     */
     private BufferedImage robinsonCompass(BufferedImage src, int thresh) {
         int[][] g = toGray(src);
         int h = g.length, w = g[0].length;
 
         int[][][] masks = {
-                {{-1,-2,-1},{0,0,0},{1,2,1}},   // N
-                {{0,-1,-2},{1,0,-1},{2,1,0}},    // NE
-                {{1,0,-1},{2,0,-2},{1,0,-1}},    // E
-                {{2,1,0},{1,0,-1},{0,-1,-2}},    // SE
-                {{1,2,1},{0,0,0},{-1,-2,-1}},    // S
-                {{0,1,2},{-1,0,1},{-2,-1,0}},    // SO
-                {{-1,0,1},{-2,0,2},{-1,0,1}},    // O
-                {{-2,-1,0},{-1,0,1},{0,1,2}}     // NO
+                {{-1,-2,-1},{0,0,0},{1,2,1}},
+                {{0,-1,-2},{1,0,-1},{2,1,0}},
+                {{1,0,-1},{2,0,-2},{1,0,-1}},
+                {{2,1,0},{1,0,-1},{0,-1,-2}},
+                {{1,2,1},{0,0,0},{-1,-2,-1}},
+                {{0,1,2},{-1,0,1},{-2,-1,0}},
+                {{-1,0,1},{-2,0,2},{-1,0,1}},
+                {{-2,-1,0},{-1,0,1},{0,1,2}}
         };
 
         double[][] mag = new double[h][w];
@@ -990,24 +945,16 @@ public class PhotoEditorFrame extends JFrame {
         return magnitudeToImage(mag, src, thresh);
     }
 
-    // ── Frei-Chen ────────────────────────────────────────────────────────────────
-    /**
-     * Projeção da janela 3×3 no subespaço das 4 máscaras ortonormais de borda.
-     * Magnitude = proporção de energia no subespaço [0.0–1.0].
-     *
-     * @param thresh  limiar de projeção [0.0–1.0]. Quanto maior, mais seletivo.
-     *                Internamente comparado diretamente com a magnitude (não normalizada).
-     */
     private BufferedImage freiChen(BufferedImage src, double thresh) {
         int[][] g = toGray(src);
         int h = g.length, w = g[0].length;
         double s2 = Math.sqrt(2);
 
         double[][][] masks = {
-                {{  1, s2,  1},{  0,  0,  0},{ -1,-s2, -1}},  // W1
-                {{  1,  0, -1},{ s2,  0,-s2},{  1,  0, -1}},  // W2
-                {{  0,  1, s2},{ -1,  0,  1},{-s2, -1,  0}},  // W3
-                {{ s2,  1,  0},{  1,  0, -1},{  0, -1,-s2}}   // W4
+                {{  1, s2,  1},{  0,  0,  0},{ -1,-s2, -1}},
+                {{  1,  0, -1},{ s2,  0,-s2},{  1,  0, -1}},
+                {{  0,  1, s2},{ -1,  0,  1},{-s2, -1,  0}},
+                {{ s2,  1,  0},{  1,  0, -1},{  0, -1,-s2}}
         };
 
         double[] norms = new double[4];
@@ -1042,19 +989,9 @@ public class PhotoEditorFrame extends JFrame {
                 mag[y][x] = Math.sqrt(soma) / normJanela;
             }
 
-        // mag está em [0,1] — thresh também em [0,1]
-        // magnitudeToImage normaliza internamente, então passamos thresh*255
         return magnitudeToImage(mag, src, thresh * 255.0);
     }
 
-    // ── Marr-Hildreth (LoG) ───────────────────────────────────────────────────────
-    /**
-     * Gaussiano(sigma) → Laplaciano → zero-crossings.
-     * Resultado exibido em escala contínua (normalizado) para melhor visualização.
-     *
-     * @param ks     tamanho do kernel Gaussiano
-     * @param sigma  desvio padrão (slider: 0.5–3.0)
-     */
     private BufferedImage marrHildreth(BufferedImage src, int ks, double sigma) {
         BufferedImage suavizada = gaussiano(src, ks, sigma);
         int[][] g = toGray(suavizada);
@@ -1085,16 +1022,9 @@ public class PhotoEditorFrame extends JFrame {
                     mag[y][x] = maxDiff;
                 }
             }
-        return magnitudeToImage(mag, src, -1); // contínuo — sigma já controla a espessura
+        return magnitudeToImage(mag, src, -1);
     }
 
-    // ── Canny ────────────────────────────────────────────────────────────────────
-    /**
-     * Pipeline: gaussiano → Sobel → NMS → histerese → rastreamento.
-     *
-     * @param lowThresh   limiar baixo (bordas fracas candidatas)
-     * @param highThresh  limiar alto  (bordas fortes confirmadas)
-     */
     private BufferedImage canny(BufferedImage src, double lowThresh, double highThresh) {
         int h = src.getHeight(), w = src.getWidth();
 
@@ -1117,7 +1047,6 @@ public class PhotoEditorFrame extends JFrame {
                 if (dir[y][x] < 0) dir[y][x] += 180;
             }
 
-        // Supressão de não-máximos
         double[][] nms = new double[h][w];
         for (int y=1; y<h-1; y++)
             for (int x=1; x<w-1; x++) {
@@ -1129,7 +1058,6 @@ public class PhotoEditorFrame extends JFrame {
                 nms[y][x] = (m >= n1 && m >= n2) ? m : 0;
             }
 
-        // Histerese
         double maxMag = 1e-10;
         for (double[] row : nms) for (double v : row) if (v > maxMag) maxMag = v;
 
@@ -1142,7 +1070,6 @@ public class PhotoEditorFrame extends JFrame {
                 else                      edges[y][x] = 0;
             }
 
-        // Rastreamento de bordas fracas
         boolean changed = true;
         while (changed) {
             changed = false;
@@ -1210,6 +1137,346 @@ public class PhotoEditorFrame extends JFrame {
             int lum=(int)(0.299*r+0.587*g+0.114*b);
             int cor=lum>=limiar?255:0;
             out.setRGB(x,y,(a<<24)|(cor<<16)|(cor<<8)|cor);
+        }
+        return out;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MORFOLOGIA — SEÇÃO DO PAINEL
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void buildMorphologySection(JPanel inner) {
+        addSection(inner, "MORFOLOGIA");
+        inner.add(Box.createVerticalStrut(6));
+
+        // ── Elementos estruturantes (grade 2×3) ──────────────────────────
+        addSubLabel(inner, "elemento estruturante");
+        inner.add(Box.createVerticalStrut(3));
+
+        String[] seNames = {"Disco", "Cruz", "Quadrado", "Hexágono", "Linha", "Par Pts"};
+        String[] seKeys  = {"DISCO", "CRUZ", "QUADRADO", "HEXAGONO", "LINHA", "PONTOS"};
+
+        JPanel seGrid = new JPanel(new java.awt.GridLayout(2, 3, 4, 4));
+        seGrid.setOpaque(false);
+        seGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
+        seGrid.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        seButtons = new JButton[seKeys.length];
+        for (int i = 0; i < seKeys.length; i++) {
+            final String key = seKeys[i];
+            JButton btn = makeSEButton(seNames[i], key);
+            seButtons[i] = btn;
+            seGrid.add(btn);
+        }
+        inner.add(seGrid);
+        inner.add(Box.createVerticalStrut(6));
+
+        // ── Reset B&W ────────────────────────────────────────────────────
+        btnMorphReset = makeActionButton("↺  Reset B&W", new Color(70, 70, 100));
+        btnMorphReset.addActionListener(e -> morphReset());
+        addSideBtn(inner, btnMorphReset);
+        inner.add(Box.createVerticalStrut(8));
+
+        // ── Slider de iterações ──────────────────────────────────────────
+        addSubLabel(inner, "iterações  (1 = sem repetição)");
+        sliderMorphIter = makeSlider(1, 10, 1);
+        valMorphIter    = makeValLabel("1");
+        sliderMorphIter.addChangeListener(e ->
+                valMorphIter.setText(String.valueOf(sliderMorphIter.getValue())));
+        addSliderRow(inner, sliderMorphIter, valMorphIter);
+        inner.add(Box.createVerticalStrut(6));
+
+        // ── Operações morfológicas ───────────────────────────────────────
+        btnErosao     = makeMorphButton("⊖  Erosão",     "EROSAO");
+        btnDilatacao  = makeMorphButton("⊕  Dilatação",  "DILATACAO");
+        btnAbertura   = makeMorphButton("◁  Abertura",   "ABERTURA");
+        btnFechamento = makeMorphButton("▷  Fechamento", "FECHAMENTO");
+
+        for (JButton b : new JButton[]{btnErosao, btnDilatacao, btnAbertura, btnFechamento}) {
+            addSideBtn(inner, b);
+            inner.add(Box.createVerticalStrut(3));
+        }
+        inner.add(Box.createVerticalStrut(13));
+    }
+
+    // ── Botão de elemento estruturante (grade compacta) ──────────────────────────
+    private JButton makeSEButton(String label, String key) {
+        JButton btn = new JButton(label) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean active = key.equals(selectedStructElement);
+                Color bg = active ? ACCENT2
+                        : getModel().isRollover() ? BTN_HOVER : BTN_NORMAL;
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                if (active) {
+                    g2.setColor(new Color(180, 230, 255));
+                    g2.fillRoundRect(0, 3, 3, getHeight()-6, 2, 2);
+                }
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btn.setForeground(TEXT_LABEL);
+        btn.setFont(new Font("Monospaced", Font.PLAIN, 9));
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setOpaque(false);
+        btn.setHorizontalAlignment(SwingConstants.CENTER);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.addActionListener(e -> selectStructElement(key));
+        btn.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
+            @Override public void mouseExited (MouseEvent e) { btn.repaint(); }
+        });
+        return btn;
+    }
+
+    // ── Botão de operação morfológica ────────────────────────────────────────────
+    private JButton makeMorphButton(String text, String op) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                Color bg = getModel().isRollover() ? BTN_HOVER : BTN_NORMAL;
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btn.setForeground(TEXT_LABEL);
+        btn.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setOpaque(false);
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 8));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(200, 32));
+        btn.addActionListener(e -> applyMorphOp(op));
+        btn.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
+            @Override public void mouseExited (MouseEvent e) { btn.repaint(); }
+        });
+        return btn;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MORFOLOGIA — LÓGICA
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /** Seleciona SE e aplica threshold (limiar 128) para criar a base morfológica */
+    private void selectStructElement(String key) {
+        if (originalImage == null) {
+            JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        selectedStructElement = key;
+        if (seButtons != null) for (JButton b : seButtons) b.repaint();
+
+        // Aplica threshold para binarizar a imagem
+        morphBaseImage = threshold(originalImage, 128);
+        filteredImage  = morphBaseImage;
+        displayImage(filteredImage, false);
+        updateStatus("SE selecionado: " + key + " — imagem binarizada (limiar 128)");
+    }
+
+    /** Reseta para o preto e branco (threshold da original) */
+    private void morphReset() {
+        if (originalImage == null) return;
+        morphBaseImage = threshold(originalImage, 128);
+        filteredImage  = morphBaseImage;
+        displayImage(filteredImage, false);
+        updateStatus("Morfologia: reset — imagem binarizada");
+    }
+
+    /** Aplica operação morfológica SOBRE a imagem filtrada atual (composição possível) */
+    private void applyMorphOp(String op) {
+        if (originalImage == null) {
+            JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (selectedStructElement == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Selecione um elemento estruturante primeiro.",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Usa filteredImage como entrada (permite composição erosão+dilatação, etc.)
+        // Se não houver imagem filtrada ainda, binariza a original
+        final BufferedImage base = (filteredImage != null)
+                ? filteredImage
+                : threshold(originalImage, 128);
+        final boolean[][] se    = getStructuringElement(selectedStructElement);
+        final int         iters = sliderMorphIter.getValue();
+
+        SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
+            @Override protected BufferedImage doInBackground() {
+                return switch (op) {
+                    case "EROSAO"    -> aplicarNVezes(base, se, iters, true);
+                    case "DILATACAO" -> aplicarNVezes(base, se, iters, false);
+                    // Abertura  = erosão(N) → dilatação(N)
+                    case "ABERTURA"  -> {
+                        BufferedImage e = aplicarNVezes(base, se, iters, true);
+                        yield aplicarNVezes(e, se, iters, false);
+                    }
+                    // Fechamento = dilatação(N) → erosão(N)
+                    case "FECHAMENTO" -> {
+                        BufferedImage d = aplicarNVezes(base, se, iters, false);
+                        yield aplicarNVezes(d, se, iters, true);
+                    }
+                    default -> base;
+                };
+            }
+            @Override protected void done() {
+                try {
+                    filteredImage = get();
+                    displayImage(filteredImage, false);
+                    updateStatus(op + " ×" + iters + "  [SE: " + selectedStructElement + "]");
+                } catch (Exception ex) {
+                    logger.log(java.util.logging.Level.SEVERE, "Erro morfologia", ex);
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    /** Aplica erosão (erode=true) ou dilatação (erode=false) n vezes */
+    private BufferedImage aplicarNVezes(BufferedImage img, boolean[][] se, int n, boolean erode) {
+        BufferedImage cur = img;
+        for (int i = 0; i < n; i++)
+            cur = erode ? erode(cur, se) : dilate(cur, se);
+        return cur;
+    }
+
+    // ── Elementos estruturantes ──────────────────────────────────────────────────
+
+    private boolean[][] getStructuringElement(String key) {
+        return switch (key) {
+            // Disco: aproximação circular 5×5
+            case "DISCO" -> new boolean[][] {
+                    {false, true,  true,  true,  false},
+                    {true,  true,  true,  true,  true },
+                    {true,  true,  true,  true,  true },
+                    {true,  true,  true,  true,  true },
+                    {false, true,  true,  true,  false}
+            };
+            // Cruz em formato de "+"
+            case "CRUZ" -> new boolean[][] {
+                    {false, false, true,  false, false},
+                    {false, false, true,  false, false},
+                    {true,  true,  true,  true,  true },
+                    {false, false, true,  false, false},
+                    {false, false, true,  false, false}
+            };
+            // Quadrado 5×5 cheio
+            case "QUADRADO" -> new boolean[][] {
+                    {true, true, true, true, true},
+                    {true, true, true, true, true},
+                    {true, true, true, true, true},
+                    {true, true, true, true, true},
+                    {true, true, true, true, true}
+            };
+            // Hexágono (forma aproximada 5×5)
+            case "HEXAGONO" -> new boolean[][] {
+                    {false, true,  true,  true,  false},
+                    {true,  true,  true,  true,  true },
+                    {true,  true,  true,  true,  true },
+                    {true,  true,  true,  true,  true },
+                    {false, true,  true,  true,  false}
+            };
+            // Segmento de linha horizontal
+            case "LINHA" -> new boolean[][] {
+                    {false, false, false, false, false},
+                    {false, false, false, false, false},
+                    {true,  true,  true,  true,  true },
+                    {false, false, false, false, false},
+                    {false, false, false, false, false}
+            };
+            // Par de Pontos: centro + vizinho à direita com gap
+            case "PONTOS" -> new boolean[][] {
+                    {false, false, false, false, false},
+                    {false, false, false, false, false},
+                    {false, false, true,  false, true },
+                    {false, false, false, false, false},
+                    {false, false, false, false, false}
+            };
+            default -> new boolean[][]{{true}};
+        };
+    }
+
+    // ── Erosão binária ────────────────────────────────────────────────────────────
+    /**
+     * Um pixel de saída é branco (255) somente se TODOS os pixels cobertos
+     * pelo SE são brancos na imagem de entrada.
+     */
+    private BufferedImage erode(BufferedImage src, boolean[][] se) {
+        int w = src.getWidth(), h = src.getHeight();
+        int kr = se.length / 2, kc = se[0].length / 2;
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean fit = true;
+                outer:
+                for (int ky = 0; ky < se.length && fit; ky++) {
+                    for (int kx = 0; kx < se[0].length && fit; kx++) {
+                        if (!se[ky][kx]) continue;
+                        int nx = x + kx - kc;
+                        int ny = y + ky - kr;
+                        if (nx < 0 || nx >= w || ny < 0 || ny >= h) {
+                            fit = false;
+                        } else {
+                            int lum = (src.getRGB(nx, ny) >> 16) & 0xFF;
+                            if (lum < 128) fit = false;
+                        }
+                    }
+                }
+                int v = fit ? 255 : 0;
+                int a = (src.getRGB(x, y) >> 24) & 0xFF;
+                out.setRGB(x, y, (a << 24) | (v << 16) | (v << 8) | v);
+            }
+        }
+        return out;
+    }
+
+    // ── Dilatação binária ─────────────────────────────────────────────────────────
+    /**
+     * Um pixel de saída é branco (255) se PELO MENOS UM pixel coberto
+     * pelo SE é branco na imagem de entrada.
+     */
+    private BufferedImage dilate(BufferedImage src, boolean[][] se) {
+        int w = src.getWidth(), h = src.getHeight();
+        int kr = se.length / 2, kc = se[0].length / 2;
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean hit = false;
+                outer:
+                for (int ky = 0; ky < se.length; ky++) {
+                    for (int kx = 0; kx < se[0].length; kx++) {
+                        if (!se[ky][kx]) continue;
+                        int nx = x + kx - kc;
+                        int ny = y + ky - kr;
+                        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                        int lum = (src.getRGB(nx, ny) >> 16) & 0xFF;
+                        if (lum >= 128) { hit = true; break outer; }
+                    }
+                }
+                int v = hit ? 255 : 0;
+                int a = (src.getRGB(x, y) >> 24) & 0xFF;
+                out.setRGB(x, y, (a << 24) | (v << 16) | (v << 8) | v);
+            }
         }
         return out;
     }
