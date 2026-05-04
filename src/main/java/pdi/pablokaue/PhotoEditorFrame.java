@@ -76,6 +76,7 @@ public class PhotoEditorFrame extends JFrame {
     private JLabel  valMorphIter;
     private JButton btnErosao, btnDilatacao, btnAbertura, btnFechamento, btnMorphReset;
     private JButton[] seButtons;
+    private boolean morphThreshEnabled = true;   // toggle: aplicar threshold ao selecionar SE
 
     // Cores do tema
     private static final Color BG_DARK      = new Color(15, 15, 19);
@@ -422,7 +423,7 @@ public class PhotoEditorFrame extends JFrame {
         JScrollPane scroll = new JScrollPane(inner,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setPreferredSize(new Dimension(250, 0));
+        scroll.setPreferredSize(new Dimension(400, 0));
         scroll.setBorder(new MatteBorder(0, 0, 0, 1, BORDER_COLOR));
         scroll.getViewport().setBackground(BG_PANEL);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
@@ -1171,6 +1172,51 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(seGrid);
         inner.add(Box.createVerticalStrut(6));
 
+        // ── Toggle threshold ─────────────────────────────────────────────
+        JPanel toggleRow = new JPanel(new BorderLayout(6, 0));
+        toggleRow.setOpaque(false);
+        toggleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        toggleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel toggleLbl = new JLabel("aplicar threshold ao selecionar");
+        toggleLbl.setFont(new Font("Monospaced", Font.PLAIN, 9));
+        toggleLbl.setForeground(TEXT_MUTED);
+
+        JToggleButton toggleThresh = new JToggleButton("ON") {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                Color bg = isSelected() ? new Color(45, 170, 110) : new Color(100, 40, 40);
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        toggleThresh.setSelected(true);
+        toggleThresh.setForeground(Color.WHITE);
+        toggleThresh.setFont(new Font("Monospaced", Font.BOLD, 9));
+        toggleThresh.setFocusPainted(false);
+        toggleThresh.setBorderPainted(false);
+        toggleThresh.setContentAreaFilled(false);
+        toggleThresh.setPreferredSize(new Dimension(34, 22));
+        toggleThresh.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        toggleThresh.addActionListener(e -> {
+            morphThreshEnabled = toggleThresh.isSelected();
+            toggleThresh.setText(morphThreshEnabled ? "ON" : "OFF");
+            toggleThresh.repaint();
+        });
+        toggleThresh.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { toggleThresh.repaint(); }
+            @Override public void mouseExited (MouseEvent e) { toggleThresh.repaint(); }
+        });
+
+        toggleRow.add(toggleLbl,    BorderLayout.CENTER);
+        toggleRow.add(toggleThresh, BorderLayout.EAST);
+        inner.add(toggleRow);
+        inner.add(Box.createVerticalStrut(6));
+
         // ── Reset B&W ────────────────────────────────────────────────────
         btnMorphReset = makeActionButton("↺  Reset B&W", new Color(70, 70, 100));
         btnMorphReset.addActionListener(e -> morphReset());
@@ -1281,20 +1327,33 @@ public class PhotoEditorFrame extends JFrame {
         selectedStructElement = key;
         if (seButtons != null) for (JButton b : seButtons) b.repaint();
 
-        // Aplica threshold para binarizar a imagem
-        morphBaseImage = threshold(originalImage, 128);
-        filteredImage  = morphBaseImage;
-        displayImage(filteredImage, false);
-        updateStatus("SE selecionado: " + key + " — imagem binarizada (limiar 128)");
+        if (morphThreshEnabled) {
+            morphBaseImage = threshold(originalImage, 128);
+            filteredImage  = morphBaseImage;
+            displayImage(filteredImage, false);
+            updateStatus("SE: " + key + " — imagem binarizada (limiar 128)");
+        } else {
+            morphBaseImage = originalImage;
+            filteredImage  = originalImage;
+            displayImage(filteredImage, false);
+            updateStatus("SE: " + key + " — sem threshold (imagem original)");
+        }
     }
 
-    /** Reseta para o preto e branco (threshold da original) */
+    /** Reseta para o preto e branco (threshold da original) ou para a original sem threshold */
     private void morphReset() {
         if (originalImage == null) return;
-        morphBaseImage = threshold(originalImage, 128);
-        filteredImage  = morphBaseImage;
-        displayImage(filteredImage, false);
-        updateStatus("Morfologia: reset — imagem binarizada");
+        if (morphThreshEnabled) {
+            morphBaseImage = threshold(originalImage, 128);
+            filteredImage  = morphBaseImage;
+            displayImage(filteredImage, false);
+            updateStatus("Morfologia: reset — imagem binarizada");
+        } else {
+            morphBaseImage = originalImage;
+            filteredImage  = originalImage;
+            displayImage(filteredImage, false);
+            updateStatus("Morfologia: reset — imagem original");
+        }
     }
 
     /** Aplica operação morfológica SOBRE a imagem filtrada atual (composição possível) */
