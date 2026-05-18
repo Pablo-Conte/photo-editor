@@ -22,6 +22,8 @@ public class PhotoEditorFrame extends JFrame {
     // --- Estado ---
     private BufferedImage originalImage = null;
     private BufferedImage filteredImage = null;
+    // Salva a imagem antes do slider começar a modificar para não acumular
+    private BufferedImage preSliderImage = null;
     private String activeFilter = null;
 
     // --- Componentes ---
@@ -78,9 +80,12 @@ public class PhotoEditorFrame extends JFrame {
     private BufferedImage morphBaseImage = null;
     private JSlider sliderMorphIter;
     private JLabel  valMorphIter;
-    private JButton btnErosao, btnDilatacao, btnAbertura, btnFechamento, btnMorphReset;
+    private JButton btnErosao, btnDilatacao, btnAbertura, btnFechamento;
     private JButton[] seButtons;
     private boolean morphThreshEnabled = true;   // toggle: aplicar threshold ao selecionar SE
+    
+    // Botão reset global
+    private JButton btnResetImage;
 
     // Cores do tema
     private static final Color BG_DARK      = new Color(15, 15, 19);
@@ -99,6 +104,22 @@ public class PhotoEditorFrame extends JFrame {
 
     public PhotoEditorFrame() {
         initComponents();
+        setupKeyBindings();
+    }
+
+    private void setupKeyBindings() {
+        JRootPane rootPane = this.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = rootPane.getActionMap();
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0), "resetImage");
+
+        actionMap.put("resetImage", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                resetImage();
+            }
+        });
     }
 
     private void initComponents() {
@@ -248,6 +269,11 @@ public class PhotoEditorFrame extends JFrame {
         btnSaveImage = makeActionButton("💾  Salvar Resultado", new Color(45, 170, 110));
         btnSaveImage.addActionListener(e -> saveImage());
         addSideBtn(inner, btnSaveImage);
+        inner.add(Box.createVerticalStrut(4));
+        
+        btnResetImage = makeActionButton("↺  Resetar Imagem (R)", new Color(70, 70, 100));
+        btnResetImage.addActionListener(e -> resetImage());
+        addSideBtn(inner, btnResetImage);
         inner.add(Box.createVerticalStrut(16));
 
         // ── GEOMÉTRICO ───────────────────────────────────────────────────────
@@ -291,7 +317,7 @@ public class PhotoEditorFrame extends JFrame {
         valRobertsThresh    = makeValLabel("30");
         sliderRobertsThresh.addChangeListener(e -> {
             valRobertsThresh.setText(String.valueOf(sliderRobertsThresh.getValue()));
-            if ("ROBERTS".equals(activeFilter)) applyFilterAsync("ROBERTS");
+            if ("ROBERTS".equals(activeFilter)) applyFilterAsync("ROBERTS", true);
         });
         btnRoberts = makeFilterButton("⟁  Roberts Cross", "ROBERTS");
         addSliderBlockLabeled(inner, "limiar", sliderRobertsThresh, valRobertsThresh, btnRoberts);
@@ -301,7 +327,7 @@ public class PhotoEditorFrame extends JFrame {
         valSobelThresh    = makeValLabel("60");
         sliderSobelThresh.addChangeListener(e -> {
             valSobelThresh.setText(String.valueOf(sliderSobelThresh.getValue()));
-            if ("SOBEL".equals(activeFilter)) applyFilterAsync("SOBEL");
+            if ("SOBEL".equals(activeFilter)) applyFilterAsync("SOBEL", true);
         });
         btnSobel = makeFilterButton("⊟  Sobel", "SOBEL");
         addSliderBlockLabeled(inner, "limiar", sliderSobelThresh, valSobelThresh, btnSobel);
@@ -311,7 +337,7 @@ public class PhotoEditorFrame extends JFrame {
         valRobinsonThresh    = makeValLabel("30");
         sliderRobinsonThresh.addChangeListener(e -> {
             valRobinsonThresh.setText(String.valueOf(sliderRobinsonThresh.getValue()));
-            if ("ROBINSON".equals(activeFilter)) applyFilterAsync("ROBINSON");
+            if ("ROBINSON".equals(activeFilter)) applyFilterAsync("ROBINSON", true);
         });
         btnRobinson = makeFilterButton("✦  Robinson Compass", "ROBINSON");
         addSliderBlockLabeled(inner, "limiar", sliderRobinsonThresh, valRobinsonThresh, btnRobinson);
@@ -321,7 +347,7 @@ public class PhotoEditorFrame extends JFrame {
         valFreiChenThresh    = makeValLabel("30%");
         sliderFreiChenThresh.addChangeListener(e -> {
             valFreiChenThresh.setText(sliderFreiChenThresh.getValue() + "%");
-            if ("FREI_CHEN".equals(activeFilter)) applyFilterAsync("FREI_CHEN");
+            if ("FREI_CHEN".equals(activeFilter)) applyFilterAsync("FREI_CHEN", true);
         });
         btnFreiChen = makeFilterButton("⋈  Frei-Chen", "FREI_CHEN");
         addSliderBlockLabeled(inner, "limiar%", sliderFreiChenThresh, valFreiChenThresh, btnFreiChen);
@@ -331,7 +357,7 @@ public class PhotoEditorFrame extends JFrame {
         valMarrSigma    = makeValLabel("1.4");
         sliderMarrSigma.addChangeListener(e -> {
             valMarrSigma.setText(String.format("%.1f", sliderMarrSigma.getValue() / 10.0));
-            if ("MARR_HILDRETH".equals(activeFilter)) applyFilterAsync("MARR_HILDRETH");
+            if ("MARR_HILDRETH".equals(activeFilter)) applyFilterAsync("MARR_HILDRETH", true);
         });
         btnMarrHildreth = makeFilterButton("◉  Marr-Hildreth", "MARR_HILDRETH");
         addSliderBlockLabeled(inner, "sigma", sliderMarrSigma, valMarrSigma, btnMarrHildreth);
@@ -346,13 +372,13 @@ public class PhotoEditorFrame extends JFrame {
             int lo = sliderCannyLow.getValue();
             if (lo >= sliderCannyHigh.getValue()) sliderCannyHigh.setValue(lo + 1);
             valCannyLow.setText(String.valueOf(lo));
-            if ("CANNY".equals(activeFilter)) applyFilterAsync("CANNY");
+            if ("CANNY".equals(activeFilter)) applyFilterAsync("CANNY", true);
         });
         sliderCannyHigh.addChangeListener(e -> {
             int hi = sliderCannyHigh.getValue();
             if (hi <= sliderCannyLow.getValue()) sliderCannyLow.setValue(hi - 1);
             valCannyHigh.setText(String.valueOf(hi));
-            if ("CANNY".equals(activeFilter)) applyFilterAsync("CANNY");
+            if ("CANNY".equals(activeFilter)) applyFilterAsync("CANNY", true);
         });
         btnCanny = makeFilterButton("◆  Canny", "CANNY");
 
@@ -390,7 +416,7 @@ public class PhotoEditorFrame extends JFrame {
         valBrilho    = makeValLabel("0");
         sliderBrilho.addChangeListener(e -> {
             valBrilho.setText(String.valueOf(sliderBrilho.getValue()));
-            if ("BRILHO".equals(activeFilter)) applyFilterAsync("BRILHO");
+            if ("BRILHO".equals(activeFilter)) applyFilterAsync("BRILHO", true);
         });
         btnBrilho = makeFilterButton("☀  Aplicar Brilho", "BRILHO");
         addSliderBlock(inner, sliderBrilho, valBrilho, btnBrilho);
@@ -404,7 +430,7 @@ public class PhotoEditorFrame extends JFrame {
         valContraste    = makeValLabel("0");
         sliderContraste.addChangeListener(e -> {
             valContraste.setText(String.valueOf(sliderContraste.getValue()));
-            if ("CONTRASTE".equals(activeFilter)) applyFilterAsync("CONTRASTE");
+            if ("CONTRASTE".equals(activeFilter)) applyFilterAsync("CONTRASTE", true);
         });
         btnContraste = makeFilterButton("◑  Aplicar Contraste", "CONTRASTE");
         addSliderBlock(inner, sliderContraste, valContraste, btnContraste);
@@ -419,9 +445,12 @@ public class PhotoEditorFrame extends JFrame {
         sliderThreshold.addChangeListener(e -> {
             valThreshold.setText(String.valueOf(sliderThreshold.getValue()));
             if (originalImage != null) {
-                activeFilter = "THRESHOLD";
-                repaintButtons();
-                applyFilterAsync("THRESHOLD");
+                if (!"THRESHOLD".equals(activeFilter)) {
+                    preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
+                    activeFilter = "THRESHOLD";
+                    repaintButtons();
+                }
+                applyFilterAsync("THRESHOLD", true);
             }
         });
         addSliderRow(inner, sliderThreshold, valThreshold);
@@ -601,6 +630,7 @@ public class PhotoEditorFrame extends JFrame {
                 File file = chooser.getSelectedFile();
                 originalImage = ImageIO.read(file);
                 filteredImage = null;
+                preSliderImage = null;
                 activeFilter  = null;
                 morphBaseImage = null;
                 selectedStructElement = null;
@@ -642,6 +672,30 @@ public class PhotoEditorFrame extends JFrame {
             }
         }
     }
+    
+    // ── Resetar Imagem ───────────────────────────────────────────────────────────
+    private void resetImage() {
+        if (originalImage == null) {
+            JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        filteredImage = null;
+        preSliderImage = null;
+        activeFilter = null;
+        morphBaseImage = null;
+        selectedStructElement = null;
+        if (seButtons != null) for (JButton b : seButtons) b.repaint();
+        
+        // Reset dos sliders de cor
+        sliderBrilho.setValue(0);
+        sliderContraste.setValue(0);
+        sliderThreshold.setValue(128);
+
+        clearOutput();
+        updateStatus("Imagem resetada.");
+        repaintButtons();
+    }
 
     // ── Aplicar filtro ────────────────────────────────────────────────────────────
     private void applyFilter(String filterKey) {
@@ -650,14 +704,26 @@ public class PhotoEditorFrame extends JFrame {
                     "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        
+        // Quando clica no botão, a base para o slider é a imagem filtrada atualmente
+        preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
         activeFilter = filterKey;
         repaintButtons();
-        applyFilterAsync(filterKey);
+        applyFilterAsync(filterKey, false);
     }
 
     // ── Executa o filtro em background ───────────────────────────────────────────
-    private void applyFilterAsync(String filterKey) {
+    private void applyFilterAsync(String filterKey, boolean fromSlider) {
         if (originalImage == null) return;
+        
+        final BufferedImage input;
+        if (fromSlider) {
+            // Se o evento for do slider, usa a imagem salva antes do slider começar
+            input = (preSliderImage != null) ? preSliderImage : originalImage;
+        } else {
+            // Se for botão de filtro ou primeira vez, usa a imagem atual (ou original)
+            input = (filteredImage != null) ? filteredImage : originalImage;
+        }
 
         final int    vBrilho            = sliderBrilho.getValue();
         final int    vContraste         = sliderContraste.getValue();
@@ -673,31 +739,31 @@ public class PhotoEditorFrame extends JFrame {
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override protected BufferedImage doInBackground() {
                 return switch (filterKey) {
-                    case "TRANSLADAR"    -> GeometricFilters.transladar(originalImage, 15, 10);
-                    case "AMPLIAR"       -> GeometricFilters.escalar(originalImage, 1.5, 1.5);
-                    case "REDUZIR"       -> GeometricFilters.escalar(originalImage, 0.5, 0.5);
-                    case "ROTACIONAR"    -> GeometricFilters.rotacionar(originalImage, 45);
-                    case "ESPELHAR_H"    -> GeometricFilters.espelharHorizontal(originalImage);
-                    case "ESPELHAR_V"    -> GeometricFilters.espelharVertical(originalImage);
-                    case "CONVOLUCAO"    -> LowPassFilters.convolucao(originalImage, new float[][]{
+                    case "TRANSLADAR"    -> GeometricFilters.transladar(input, 15, 10);
+                    case "AMPLIAR"       -> GeometricFilters.escalar(input, 1.5, 1.5);
+                    case "REDUZIR"       -> GeometricFilters.escalar(input, 0.5, 0.5);
+                    case "ROTACIONAR"    -> GeometricFilters.rotacionar(input, 45);
+                    case "ESPELHAR_H"    -> GeometricFilters.espelharHorizontal(input);
+                    case "ESPELHAR_V"    -> GeometricFilters.espelharVertical(input);
+                    case "CONVOLUCAO"    -> LowPassFilters.convolucao(input, new float[][]{
                             {1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f}
                     });
-                    case "MEDIANA"       -> LowPassFilters.mediana(originalImage, 3);
-                    case "MODA"          -> LowPassFilters.moda(originalImage, 3);
-                    case "GAUSS"         -> LowPassFilters.gaussiano(originalImage, 3, 1.0);
-                    case "ROBERTS"       -> EdgeDetectionFilters.robertsCross(originalImage, vRobertsThresh);
-                    case "SOBEL"         -> EdgeDetectionFilters.sobel(originalImage, vSobelThresh);
-                    case "ROBINSON"      -> EdgeDetectionFilters.robinsonCompass(originalImage, vRobinsonThresh);
-                    case "FREI_CHEN"     -> EdgeDetectionFilters.freiChen(originalImage, vFreiChenThresh);
-                    case "MARR_HILDRETH" -> EdgeDetectionFilters.marrHildreth(originalImage, 5, vMarrSigma);
-                    case "CANNY"         -> EdgeDetectionFilters.canny(originalImage, vCannyLow, vCannyHigh);
-                    case "STENTIFORD"    -> ThinningFilters.stentiford(originalImage);
-                    case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(originalImage);
-                    case "HOLT"          -> ThinningFilters.holt(originalImage);
-                    case "BRILHO"        -> ColorFilters.brilho(originalImage, vBrilho);
-                    case "CONTRASTE"     -> ColorFilters.contraste(originalImage, vContraste);
-                    case "THRESHOLD"     -> ColorFilters.threshold(originalImage, vThreshold);
-                    default              -> originalImage;
+                    case "MEDIANA"       -> LowPassFilters.mediana(input, 3);
+                    case "MODA"          -> LowPassFilters.moda(input, 3);
+                    case "GAUSS"         -> LowPassFilters.gaussiano(input, 3, 1.0);
+                    case "ROBERTS"       -> EdgeDetectionFilters.robertsCross(input, vRobertsThresh);
+                    case "SOBEL"         -> EdgeDetectionFilters.sobel(input, vSobelThresh);
+                    case "ROBINSON"      -> EdgeDetectionFilters.robinsonCompass(input, vRobinsonThresh);
+                    case "FREI_CHEN"     -> EdgeDetectionFilters.freiChen(input, vFreiChenThresh);
+                    case "MARR_HILDRETH" -> EdgeDetectionFilters.marrHildreth(input, 5, vMarrSigma);
+                    case "CANNY"         -> EdgeDetectionFilters.canny(input, vCannyLow, vCannyHigh);
+                    case "STENTIFORD"    -> ThinningFilters.stentiford(input);
+                    case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(input);
+                    case "HOLT"          -> ThinningFilters.holt(input);
+                    case "BRILHO"        -> ColorFilters.brilho(input, vBrilho);
+                    case "CONTRASTE"     -> ColorFilters.contraste(input, vContraste);
+                    case "THRESHOLD"     -> ColorFilters.threshold(input, vThreshold);
+                    default              -> input;
                 };
             }
             @Override protected void done() {
@@ -787,12 +853,6 @@ public class PhotoEditorFrame extends JFrame {
         toggleRow.add(toggleThresh, BorderLayout.EAST);
         inner.add(toggleRow);
         inner.add(Box.createVerticalStrut(6));
-
-        // ── Reset B&W ────────────────────────────────────────────────────
-        btnMorphReset = makeActionButton("↺  Reset B&W", new Color(70, 70, 100));
-        btnMorphReset.addActionListener(e -> morphReset());
-        addSideBtn(inner, btnMorphReset);
-        inner.add(Box.createVerticalStrut(8));
 
         // ── Slider de iterações ──────────────────────────────────────────
         addSubLabel(inner, "iterações  (1 = sem repetição)");
@@ -897,33 +957,20 @@ public class PhotoEditorFrame extends JFrame {
         }
         selectedStructElement = key;
         if (seButtons != null) for (JButton b : seButtons) b.repaint();
+        
+        // Usar a imagem filtrada atual como entrada
+        final BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
 
         if (morphThreshEnabled) {
-            morphBaseImage = ColorFilters.threshold(originalImage, 128);
+            morphBaseImage = ColorFilters.threshold(input, 128);
             filteredImage  = morphBaseImage;
             displayImage(filteredImage, false);
             updateStatus("SE: " + key + " — imagem binarizada (limiar 128)");
         } else {
-            morphBaseImage = originalImage;
-            filteredImage  = originalImage;
+            morphBaseImage = input;
+            filteredImage  = input;
             displayImage(filteredImage, false);
             updateStatus("SE: " + key + " — sem threshold (imagem original)");
-        }
-    }
-
-    /** Reseta para o preto e branco (threshold da original) ou para a original sem threshold */
-    private void morphReset() {
-        if (originalImage == null) return;
-        if (morphThreshEnabled) {
-            morphBaseImage = ColorFilters.threshold(originalImage, 128);
-            filteredImage  = morphBaseImage;
-            displayImage(filteredImage, false);
-            updateStatus("Morfologia: reset — imagem binarizada");
-        } else {
-            morphBaseImage = originalImage;
-            filteredImage  = originalImage;
-            displayImage(filteredImage, false);
-            updateStatus("Morfologia: reset — imagem original");
         }
     }
 
