@@ -1,12 +1,13 @@
 package pdi.pablokaue;
 
+import pdi.pablokaue.filters.*;
+import pdi.pablokaue.utils.ImageUtils;
+
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.WritableRaster;
 import java.io.File;
 import javax.imageio.ImageIO;
 
@@ -42,6 +43,9 @@ public class PhotoEditorFrame extends JFrame {
     // Botões — Bordas
     private JButton btnRoberts, btnSobel, btnRobinson, btnFreiChen;
     private JButton btnMarrHildreth, btnCanny;
+
+    // Botões — Afinamento
+    private JButton btnStentiford, btnZhangSuen, btnHolt;
 
     // Botões — Cor
     private JButton btnBrilho, btnContraste;
@@ -361,6 +365,20 @@ public class PhotoEditorFrame extends JFrame {
         addSideBtn(inner, btnCanny);
         inner.add(Box.createVerticalStrut(13));
 
+        // ── AFINAMENTO ────────────────────────────────────────────────────────
+        addSection(inner, "AFINAMENTO");
+        inner.add(Box.createVerticalStrut(4));
+
+        btnStentiford = makeFilterButton("✂  Stentiford", "STENTIFORD");
+        btnZhangSuen  = makeFilterButton("✂  Zhang-Suen", "ZHANG_SUEN");
+        btnHolt       = makeFilterButton("✂  Holt", "HOLT");
+
+        for (JButton b : new JButton[]{btnStentiford, btnZhangSuen, btnHolt}) {
+            addSideBtn(inner, b);
+            inner.add(Box.createVerticalStrut(3));
+        }
+        inner.add(Box.createVerticalStrut(13));
+
         addSection(inner, "TRANSFORMÇÕES PONTUAIS");
         inner.add(Box.createVerticalStrut(6));
 
@@ -655,27 +673,30 @@ public class PhotoEditorFrame extends JFrame {
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override protected BufferedImage doInBackground() {
                 return switch (filterKey) {
-                    case "TRANSLADAR"    -> transladar(originalImage, 15, 10);
-                    case "AMPLIAR"       -> escalar(originalImage, 1.5, 1.5);
-                    case "REDUZIR"       -> escalar(originalImage, 0.5, 0.5);
-                    case "ROTACIONAR"    -> rotacionar(originalImage, 45);
-                    case "ESPELHAR_H"    -> espelharHorizontal(originalImage);
-                    case "ESPELHAR_V"    -> espelharVertical(originalImage);
-                    case "CONVOLUCAO"    -> convolucao(originalImage, new float[][]{
+                    case "TRANSLADAR"    -> GeometricFilters.transladar(originalImage, 15, 10);
+                    case "AMPLIAR"       -> GeometricFilters.escalar(originalImage, 1.5, 1.5);
+                    case "REDUZIR"       -> GeometricFilters.escalar(originalImage, 0.5, 0.5);
+                    case "ROTACIONAR"    -> GeometricFilters.rotacionar(originalImage, 45);
+                    case "ESPELHAR_H"    -> GeometricFilters.espelharHorizontal(originalImage);
+                    case "ESPELHAR_V"    -> GeometricFilters.espelharVertical(originalImage);
+                    case "CONVOLUCAO"    -> LowPassFilters.convolucao(originalImage, new float[][]{
                             {1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f}
                     });
-                    case "MEDIANA"       -> mediana(originalImage, 3);
-                    case "MODA"          -> moda(originalImage, 3);
-                    case "GAUSS"         -> gaussiano(originalImage, 3, 1.0);
-                    case "ROBERTS"       -> robertsCross(originalImage, vRobertsThresh);
-                    case "SOBEL"         -> sobel(originalImage, vSobelThresh);
-                    case "ROBINSON"      -> robinsonCompass(originalImage, vRobinsonThresh);
-                    case "FREI_CHEN"     -> freiChen(originalImage, vFreiChenThresh);
-                    case "MARR_HILDRETH" -> marrHildreth(originalImage, 5, vMarrSigma);
-                    case "CANNY"         -> canny(originalImage, vCannyLow, vCannyHigh);
-                    case "BRILHO"        -> brilho(originalImage, vBrilho);
-                    case "CONTRASTE"     -> contraste(originalImage, vContraste);
-                    case "THRESHOLD"     -> threshold(originalImage, vThreshold);
+                    case "MEDIANA"       -> LowPassFilters.mediana(originalImage, 3);
+                    case "MODA"          -> LowPassFilters.moda(originalImage, 3);
+                    case "GAUSS"         -> LowPassFilters.gaussiano(originalImage, 3, 1.0);
+                    case "ROBERTS"       -> EdgeDetectionFilters.robertsCross(originalImage, vRobertsThresh);
+                    case "SOBEL"         -> EdgeDetectionFilters.sobel(originalImage, vSobelThresh);
+                    case "ROBINSON"      -> EdgeDetectionFilters.robinsonCompass(originalImage, vRobinsonThresh);
+                    case "FREI_CHEN"     -> EdgeDetectionFilters.freiChen(originalImage, vFreiChenThresh);
+                    case "MARR_HILDRETH" -> EdgeDetectionFilters.marrHildreth(originalImage, 5, vMarrSigma);
+                    case "CANNY"         -> EdgeDetectionFilters.canny(originalImage, vCannyLow, vCannyHigh);
+                    case "STENTIFORD"    -> ThinningFilters.stentiford(originalImage);
+                    case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(originalImage);
+                    case "HOLT"          -> ThinningFilters.holt(originalImage);
+                    case "BRILHO"        -> ColorFilters.brilho(originalImage, vBrilho);
+                    case "CONTRASTE"     -> ColorFilters.contraste(originalImage, vContraste);
+                    case "THRESHOLD"     -> ColorFilters.threshold(originalImage, vThreshold);
                     default              -> originalImage;
                 };
             }
@@ -690,456 +711,6 @@ public class PhotoEditorFrame extends JFrame {
             }
         };
         worker.execute();
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // TRANSFORMAÇÕES GEOMÉTRICAS
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private double[] multiplicarMatrizVetor(double[][] m, double[] v) {
-        double[] r = new double[3];
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                r[i] += m[i][j] * v[j];
-        return r;
-    }
-
-    private double[][] multiplicarMatrizes(double[][] a, double[][] b) {
-        double[][] r = new double[3][3];
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                for (int k = 0; k < 3; k++)
-                    r[i][j] += a[i][k] * b[k][j];
-        return r;
-    }
-
-    private BufferedImage aplicarTransformacao(BufferedImage src, double[][] matriz) {
-        int w = src.getWidth(), h = src.getHeight();
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        double[][] inv = inverterMatriz(matriz);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                double[] o = multiplicarMatrizVetor(inv, new double[]{x, y, 1});
-                int ox = (int) Math.round(o[0]);
-                int oy = (int) Math.round(o[1]);
-                if (ox >= 0 && ox < w && oy >= 0 && oy < h)
-                    out.setRGB(x, y, src.getRGB(ox, oy));
-            }
-        return out;
-    }
-
-    private double[][] inverterMatriz(double[][] m) {
-        double det = m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
-                - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
-                + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
-        double[][] inv = new double[3][3];
-        inv[0][0] =  (m[1][1]*m[2][2]-m[1][2]*m[2][1])/det;
-        inv[0][1] = -(m[0][1]*m[2][2]-m[0][2]*m[2][1])/det;
-        inv[0][2] =  (m[0][1]*m[1][2]-m[0][2]*m[1][1])/det;
-        inv[1][0] = -(m[1][0]*m[2][2]-m[1][2]*m[2][0])/det;
-        inv[1][1] =  (m[0][0]*m[2][2]-m[0][2]*m[2][0])/det;
-        inv[1][2] = -(m[0][0]*m[1][2]-m[0][2]*m[1][0])/det;
-        inv[2][0] =  (m[1][0]*m[2][1]-m[1][1]*m[2][0])/det;
-        inv[2][1] = -(m[0][0]*m[2][1]-m[0][1]*m[2][0])/det;
-        inv[2][2] =  (m[0][0]*m[1][1]-m[0][1]*m[1][0])/det;
-        return inv;
-    }
-
-    private BufferedImage transladar(BufferedImage src, int tx, int ty) {
-        return aplicarTransformacao(src, new double[][]{{1,0,tx},{0,1,ty},{0,0,1}});
-    }
-
-    private BufferedImage escalar(BufferedImage src, double sx, double sy) {
-        return aplicarTransformacao(src, new double[][]{{sx,0,0},{0,sy,0},{0,0,1}});
-    }
-
-    private BufferedImage rotacionar(BufferedImage src, double angulo) {
-        double rad = Math.toRadians(angulo);
-        double cos = Math.cos(rad), sen = Math.sin(rad);
-        int cx = src.getWidth()/2, cy = src.getHeight()/2;
-        double[][] m = multiplicarMatrizes(
-                new double[][]{{1,0,cx},{0,1,cy},{0,0,1}},
-                multiplicarMatrizes(
-                        new double[][]{{cos,-sen,0},{sen,cos,0},{0,0,1}},
-                        new double[][]{{1,0,-cx},{0,1,-cy},{0,0,1}}
-                )
-        );
-        return aplicarTransformacao(src, m);
-    }
-
-    private BufferedImage espelharHorizontal(BufferedImage src) {
-        return aplicarTransformacao(src,
-                new double[][]{{-1,0,src.getWidth()-1},{0,1,0},{0,0,1}});
-    }
-
-    private BufferedImage espelharVertical(BufferedImage src) {
-        return aplicarTransformacao(src,
-                new double[][]{{1,0,0},{0,-1,src.getHeight()-1},{0,0,1}});
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // VIZINHANÇA
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private BufferedImage convolucao(BufferedImage src, float[][] kernel) {
-        int w = src.getWidth(), h = src.getHeight();
-        int ks = kernel.length, kr = ks/2;
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                float sR=0, sG=0, sB=0;
-                for (int ky=0; ky<ks; ky++) for (int kx=0; kx<ks; kx++) {
-                    int nx = Math.max(0,Math.min(w-1,x+(kx-kr)));
-                    int ny = Math.max(0,Math.min(h-1,y+(ky-kr)));
-                    int rgb = src.getRGB(nx,ny);
-                    float p = kernel[ky][kx];
-                    sR += ((rgb>>16)&0xFF)*p;
-                    sG += ((rgb>> 8)&0xFF)*p;
-                    sB += ( rgb     &0xFF)*p;
-                }
-                int a = (src.getRGB(x,y)>>24)&0xFF;
-                out.setRGB(x,y,(a<<24)|(clamp(sR)<<16)|(clamp(sG)<<8)|clamp(sB));
-            }
-        return out;
-    }
-
-    private BufferedImage gaussiano(BufferedImage src, int ks, double sigma) {
-        if (ks%2==0) ks++;
-        float[][] k = new float[ks][ks];
-        int r = ks/2; float soma=0;
-        for (int y=-r; y<=r; y++) for (int x=-r; x<=r; x++) {
-            float v = (float)Math.exp(-(x*x+y*y)/(2*sigma*sigma));
-            k[y+r][x+r] = v; soma+=v;
-        }
-        for (int y=0; y<ks; y++) for (int x=0; x<ks; x++) k[y][x]/=soma;
-        return convolucao(src, k);
-    }
-
-    private BufferedImage mediana(BufferedImage src, int ks) {
-        int w=src.getWidth(), h=src.getHeight(), kr=ks/2, t=ks*ks;
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
-            int[] vR=new int[t], vG=new int[t], vB=new int[t], idx=new int[]{0};
-            for (int ky=0; ky<ks; ky++) for (int kx=0; kx<ks; kx++) {
-                int nx=Math.max(0,Math.min(w-1,x+(kx-kr)));
-                int ny=Math.max(0,Math.min(h-1,y+(ky-kr)));
-                int rgb=src.getRGB(nx,ny);
-                vR[idx[0]]=(rgb>>16)&0xFF; vG[idx[0]]=(rgb>>8)&0xFF;
-                vB[idx[0]++]=rgb&0xFF;
-            }
-            java.util.Arrays.sort(vR); java.util.Arrays.sort(vG); java.util.Arrays.sort(vB);
-            int m=t/2, a=(src.getRGB(x,y)>>24)&0xFF;
-            out.setRGB(x,y,(a<<24)|(vR[m]<<16)|(vG[m]<<8)|vB[m]);
-        }
-        return out;
-    }
-
-    private BufferedImage moda(BufferedImage src, int ks) {
-        int w=src.getWidth(), h=src.getHeight(), kr=ks/2;
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
-            java.util.HashMap<Integer,Integer> freq = new java.util.HashMap<>();
-            for (int ky=0; ky<ks; ky++) for (int kx=0; kx<ks; kx++) {
-                int nx=Math.max(0,Math.min(w-1,x+(kx-kr)));
-                int ny=Math.max(0,Math.min(h-1,y+(ky-kr)));
-                freq.merge(src.getRGB(nx,ny)&0x00FFFFFF, 1, Integer::sum);
-            }
-            int cor = freq.entrySet().stream()
-                    .max(java.util.Map.Entry.comparingByValue()).get().getKey();
-            out.setRGB(x,y,((src.getRGB(x,y)>>24)&0xFF)<<24|cor);
-        }
-        return out;
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // DETECÇÃO DE BORDAS
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private int[][] toGray(BufferedImage src) {
-        int w = src.getWidth(), h = src.getHeight();
-        int[][] gray = new int[h][w];
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                int rgb = src.getRGB(x, y);
-                gray[y][x] = (int)(0.299*((rgb>>16)&0xFF)
-                        + 0.587*((rgb>> 8)&0xFF)
-                        + 0.114*( rgb     &0xFF));
-            }
-        return gray;
-    }
-
-    private BufferedImage magnitudeToImage(double[][] mag, BufferedImage src, double thresh) {
-        int h = mag.length, w = mag[0].length;
-        double maxVal = 1e-10;
-        for (double[] row : mag) for (double v : row) if (v > maxVal) maxVal = v;
-
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                double normalized = mag[y][x] / maxVal * 255.0;
-                int v = (thresh >= 0)
-                        ? (normalized >= thresh ? 255 : 0)
-                        : clamp((int) normalized);
-                int a = (src.getRGB(x,y)>>24)&0xFF;
-                out.setRGB(x, y, (a<<24)|(v<<16)|(v<<8)|v);
-            }
-        return out;
-    }
-
-    private BufferedImage robertsCross(BufferedImage src, int thresh) {
-        int[][] g = toGray(src);
-        int h = g.length, w = g[0].length;
-        double[][] mag = new double[h][w];
-        for (int y = 0; y < h-1; y++)
-            for (int x = 0; x < w-1; x++) {
-                double gx = g[y][x]   - g[y+1][x+1];
-                double gy = g[y][x+1] - g[y+1][x];
-                mag[y][x] = Math.sqrt(gx*gx + gy*gy);
-            }
-        return magnitudeToImage(mag, src, thresh);
-    }
-
-    private BufferedImage sobel(BufferedImage src, int thresh) {
-        int[][] g = toGray(src);
-        int h = g.length, w = g[0].length;
-        double[][] mag = new double[h][w];
-        for (int y = 1; y < h-1; y++)
-            for (int x = 1; x < w-1; x++) {
-                double gx = -g[y-1][x-1] + g[y-1][x+1]
-                        -2*g[y][x-1] + 2*g[y][x+1]
-                        -g[y+1][x-1] + g[y+1][x+1];
-                double gy = -g[y-1][x-1] - 2*g[y-1][x] - g[y-1][x+1]
-                        +g[y+1][x-1] + 2*g[y+1][x] + g[y+1][x+1];
-                mag[y][x] = Math.sqrt(gx*gx + gy*gy);
-            }
-        return magnitudeToImage(mag, src, thresh);
-    }
-
-    private BufferedImage robinsonCompass(BufferedImage src, int thresh) {
-        int[][] g = toGray(src);
-        int h = g.length, w = g[0].length;
-
-        int[][][] masks = {
-                {{-1,-2,-1},{0,0,0},{1,2,1}},
-                {{0,-1,-2},{1,0,-1},{2,1,0}},
-                {{1,0,-1},{2,0,-2},{1,0,-1}},
-                {{2,1,0},{1,0,-1},{0,-1,-2}},
-                {{1,2,1},{0,0,0},{-1,-2,-1}},
-                {{0,1,2},{-1,0,1},{-2,-1,0}},
-                {{-1,0,1},{-2,0,2},{-1,0,1}},
-                {{-2,-1,0},{-1,0,1},{0,1,2}}
-        };
-
-        double[][] mag = new double[h][w];
-        for (int y = 1; y < h-1; y++)
-            for (int x = 1; x < w-1; x++) {
-                double maxResp = 0;
-                for (int[][] mask : masks) {
-                    double resp = 0;
-                    for (int ky=0; ky<3; ky++)
-                        for (int kx=0; kx<3; kx++)
-                            resp += mask[ky][kx] * g[y+ky-1][x+kx-1];
-                    maxResp = Math.max(maxResp, Math.abs(resp));
-                }
-                mag[y][x] = maxResp;
-            }
-        return magnitudeToImage(mag, src, thresh);
-    }
-
-    private BufferedImage freiChen(BufferedImage src, double thresh) {
-        int[][] g = toGray(src);
-        int h = g.length, w = g[0].length;
-        double s2 = Math.sqrt(2);
-
-        double[][][] masks = {
-                {{  1, s2,  1},{  0,  0,  0},{ -1,-s2, -1}},
-                {{  1,  0, -1},{ s2,  0,-s2},{  1,  0, -1}},
-                {{  0,  1, s2},{ -1,  0,  1},{-s2, -1,  0}},
-                {{ s2,  1,  0},{  1,  0, -1},{  0, -1,-s2}}
-        };
-
-        double[] norms = new double[4];
-        for (int i = 0; i < 4; i++) {
-            double n = 0;
-            for (double[] row : masks[i]) for (double v : row) n += v*v;
-            norms[i] = Math.sqrt(n);
-        }
-
-        double[][] mag = new double[h][w];
-        for (int y = 1; y < h-1; y++)
-            for (int x = 1; x < w-1; x++) {
-                double[] janela = new double[9];
-                double normJanela = 0;
-                int idx = 0;
-                for (int ky=-1; ky<=1; ky++)
-                    for (int kx=-1; kx<=1; kx++) {
-                        double v = g[y+ky][x+kx];
-                        janela[idx++] = v;
-                        normJanela += v*v;
-                    }
-                normJanela = Math.sqrt(normJanela) + 1e-10;
-
-                double soma = 0;
-                for (int i = 0; i < 4; i++) {
-                    double dot = 0; idx = 0;
-                    for (int ky=0; ky<3; ky++)
-                        for (int kx=0; kx<3; kx++)
-                            dot += (masks[i][ky][kx]/norms[i]) * janela[idx++];
-                    soma += dot*dot;
-                }
-                mag[y][x] = Math.sqrt(soma) / normJanela;
-            }
-
-        return magnitudeToImage(mag, src, thresh * 255.0);
-    }
-
-    private BufferedImage marrHildreth(BufferedImage src, int ks, double sigma) {
-        BufferedImage suavizada = gaussiano(src, ks, sigma);
-        int[][] g = toGray(suavizada);
-        int h = g.length, w = g[0].length;
-
-        double[][] lap = new double[h][w];
-        for (int y=1; y<h-1; y++)
-            for (int x=1; x<w-1; x++)
-                lap[y][x] = g[y-1][x] + g[y+1][x]
-                        + g[y][x-1] + g[y][x+1]
-                        - 4.0*g[y][x];
-
-        double[][] mag = new double[h][w];
-        for (int y=1; y<h-1; y++)
-            for (int x=1; x<w-1; x++) {
-                double v = lap[y][x];
-                boolean crossing =
-                        (v > 0 && (lap[y][x-1]<0 || lap[y][x+1]<0 ||
-                                lap[y-1][x]<0 || lap[y+1][x]<0)) ||
-                                (v < 0 && (lap[y][x-1]>0 || lap[y][x+1]>0 ||
-                                        lap[y-1][x]>0 || lap[y+1][x]>0));
-                if (crossing) {
-                    double maxDiff = 0;
-                    maxDiff = Math.max(maxDiff, Math.abs(v - lap[y][x-1]));
-                    maxDiff = Math.max(maxDiff, Math.abs(v - lap[y][x+1]));
-                    maxDiff = Math.max(maxDiff, Math.abs(v - lap[y-1][x]));
-                    maxDiff = Math.max(maxDiff, Math.abs(v - lap[y+1][x]));
-                    mag[y][x] = maxDiff;
-                }
-            }
-        return magnitudeToImage(mag, src, -1);
-    }
-
-    private BufferedImage canny(BufferedImage src, double lowThresh, double highThresh) {
-        int h = src.getHeight(), w = src.getWidth();
-
-        BufferedImage suavizada = gaussiano(src, 5, 1.4);
-        int[][] g = toGray(suavizada);
-
-        double[][] gx  = new double[h][w];
-        double[][] gy  = new double[h][w];
-        double[][] mag = new double[h][w];
-        double[][] dir = new double[h][w];
-        for (int y=1; y<h-1; y++)
-            for (int x=1; x<w-1; x++) {
-                gx[y][x] = -g[y-1][x-1] + g[y-1][x+1]
-                        -2*g[y][x-1] + 2*g[y][x+1]
-                        -g[y+1][x-1] + g[y+1][x+1];
-                gy[y][x] = -g[y-1][x-1] - 2*g[y-1][x] - g[y-1][x+1]
-                        +g[y+1][x-1] + 2*g[y+1][x] + g[y+1][x+1];
-                mag[y][x] = Math.sqrt(gx[y][x]*gx[y][x] + gy[y][x]*gy[y][x]);
-                dir[y][x] = Math.toDegrees(Math.atan2(gy[y][x], gx[y][x]));
-                if (dir[y][x] < 0) dir[y][x] += 180;
-            }
-
-        double[][] nms = new double[h][w];
-        for (int y=1; y<h-1; y++)
-            for (int x=1; x<w-1; x++) {
-                double angle = dir[y][x], m = mag[y][x], n1, n2;
-                if      (angle < 22.5 || angle >= 157.5) { n1=mag[y][x-1];   n2=mag[y][x+1];   }
-                else if (angle < 67.5)                   { n1=mag[y-1][x+1]; n2=mag[y+1][x-1]; }
-                else if (angle < 112.5)                  { n1=mag[y-1][x];   n2=mag[y+1][x];   }
-                else                                     { n1=mag[y-1][x-1]; n2=mag[y+1][x+1]; }
-                nms[y][x] = (m >= n1 && m >= n2) ? m : 0;
-            }
-
-        double maxMag = 1e-10;
-        for (double[] row : nms) for (double v : row) if (v > maxMag) maxMag = v;
-
-        int[][] edges = new int[h][w];
-        for (int y=0; y<h; y++)
-            for (int x=0; x<w; x++) {
-                double v = nms[y][x] / maxMag * 255.0;
-                if      (v >= highThresh) edges[y][x] = 255;
-                else if (v >= lowThresh)  edges[y][x] = 128;
-                else                      edges[y][x] = 0;
-            }
-
-        boolean changed = true;
-        while (changed) {
-            changed = false;
-            for (int y=1; y<h-1; y++)
-                for (int x=1; x<w-1; x++)
-                    if (edges[y][x] == 128) {
-                        outer:
-                        for (int dy=-1; dy<=1; dy++)
-                            for (int dx=-1; dx<=1; dx++)
-                                if (edges[y+dy][x+dx] == 255) {
-                                    edges[y][x] = 255; changed = true; break outer;
-                                }
-                    }
-        }
-
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<h; y++)
-            for (int x=0; x<w; x++) {
-                int v = (edges[y][x] == 255) ? 255 : 0;
-                int a = (src.getRGB(x,y)>>24)&0xFF;
-                out.setRGB(x, y, (a<<24)|(v<<16)|(v<<8)|v);
-            }
-        return out;
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // AJUSTES DE COR
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private BufferedImage brilho(BufferedImage src, int delta) {
-        int aj = (int)(delta*2.55);
-        int w=src.getWidth(), h=src.getHeight();
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
-            int rgb=src.getRGB(x,y), a=(rgb>>24)&0xFF;
-            int r=clamp(((rgb>>16)&0xFF)+aj);
-            int g=clamp(((rgb>> 8)&0xFF)+aj);
-            int b=clamp(( rgb     &0xFF)+aj);
-            out.setRGB(x,y,(a<<24)|(r<<16)|(g<<8)|b);
-        }
-        return out;
-    }
-
-    private BufferedImage contraste(BufferedImage src, int delta) {
-        int d=(int)(delta*2.55);
-        double f=(259.0*(d+255))/(255.0*(259-d));
-        int w=src.getWidth(), h=src.getHeight();
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
-            int rgb=src.getRGB(x,y), a=(rgb>>24)&0xFF;
-            int r=clamp((int)(f*(((rgb>>16)&0xFF)-128)+128));
-            int g=clamp((int)(f*(((rgb>> 8)&0xFF)-128)+128));
-            int b=clamp((int)(f*(( rgb     &0xFF)-128)+128));
-            out.setRGB(x,y,(a<<24)|(r<<16)|(g<<8)|b);
-        }
-        return out;
-    }
-
-    private BufferedImage threshold(BufferedImage src, int limiar) {
-        int w=src.getWidth(), h=src.getHeight();
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
-            int rgb=src.getRGB(x,y), a=(rgb>>24)&0xFF;
-            int r=(rgb>>16)&0xFF, g=(rgb>>8)&0xFF, b=rgb&0xFF;
-            int lum=(int)(0.299*r+0.587*g+0.114*b);
-            int cor=lum>=limiar?255:0;
-            out.setRGB(x,y,(a<<24)|(cor<<16)|(cor<<8)|cor);
-        }
-        return out;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1328,7 +899,7 @@ public class PhotoEditorFrame extends JFrame {
         if (seButtons != null) for (JButton b : seButtons) b.repaint();
 
         if (morphThreshEnabled) {
-            morphBaseImage = threshold(originalImage, 128);
+            morphBaseImage = ColorFilters.threshold(originalImage, 128);
             filteredImage  = morphBaseImage;
             displayImage(filteredImage, false);
             updateStatus("SE: " + key + " — imagem binarizada (limiar 128)");
@@ -1344,7 +915,7 @@ public class PhotoEditorFrame extends JFrame {
     private void morphReset() {
         if (originalImage == null) return;
         if (morphThreshEnabled) {
-            morphBaseImage = threshold(originalImage, 128);
+            morphBaseImage = ColorFilters.threshold(originalImage, 128);
             filteredImage  = morphBaseImage;
             displayImage(filteredImage, false);
             updateStatus("Morfologia: reset — imagem binarizada");
@@ -1374,24 +945,24 @@ public class PhotoEditorFrame extends JFrame {
         // Se não houver imagem filtrada ainda, binariza a original
         final BufferedImage base = (filteredImage != null)
                 ? filteredImage
-                : threshold(originalImage, 128);
-        final boolean[][] se    = getStructuringElement(selectedStructElement);
+                : ColorFilters.threshold(originalImage, 128);
+        final boolean[][] se    = MorphologyFilters.getStructuringElement(selectedStructElement);
         final int         iters = sliderMorphIter.getValue();
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override protected BufferedImage doInBackground() {
                 return switch (op) {
-                    case "EROSAO"    -> aplicarNVezes(base, se, iters, true);
-                    case "DILATACAO" -> aplicarNVezes(base, se, iters, false);
+                    case "EROSAO"    -> MorphologyFilters.aplicarNVezes(base, se, iters, true);
+                    case "DILATACAO" -> MorphologyFilters.aplicarNVezes(base, se, iters, false);
                     // Abertura  = erosão(N) → dilatação(N)
                     case "ABERTURA"  -> {
-                        BufferedImage e = aplicarNVezes(base, se, iters, true);
-                        yield aplicarNVezes(e, se, iters, false);
+                        BufferedImage e = MorphologyFilters.aplicarNVezes(base, se, iters, true);
+                        yield MorphologyFilters.aplicarNVezes(e, se, iters, false);
                     }
                     // Fechamento = dilatação(N) → erosão(N)
                     case "FECHAMENTO" -> {
-                        BufferedImage d = aplicarNVezes(base, se, iters, false);
-                        yield aplicarNVezes(d, se, iters, true);
+                        BufferedImage d = MorphologyFilters.aplicarNVezes(base, se, iters, false);
+                        yield MorphologyFilters.aplicarNVezes(d, se, iters, true);
                     }
                     default -> base;
                 };
@@ -1409,150 +980,9 @@ public class PhotoEditorFrame extends JFrame {
         worker.execute();
     }
 
-    /** Aplica erosão (erode=true) ou dilatação (erode=false) n vezes */
-    private BufferedImage aplicarNVezes(BufferedImage img, boolean[][] se, int n, boolean erode) {
-        BufferedImage cur = img;
-        for (int i = 0; i < n; i++)
-            cur = erode ? erode(cur, se) : dilate(cur, se);
-        return cur;
-    }
-
-    // ── Elementos estruturantes ──────────────────────────────────────────────────
-
-    private boolean[][] getStructuringElement(String key) {
-        return switch (key) {
-            // Disco: aproximação circular 5×5
-            case "DISCO" -> new boolean[][] {
-                    {false, true,  true,  true,  false},
-                    {true,  true,  true,  true,  true },
-                    {true,  true,  true,  true,  true },
-                    {true,  true,  true,  true,  true },
-                    {false, true,  true,  true,  false}
-            };
-            // Cruz em formato de "+"
-            case "CRUZ" -> new boolean[][] {
-                    {false, false, true,  false, false},
-                    {false, false, true,  false, false},
-                    {true,  true,  true,  true,  true },
-                    {false, false, true,  false, false},
-                    {false, false, true,  false, false}
-            };
-            // Quadrado 5×5 cheio
-            case "QUADRADO" -> new boolean[][] {
-                    {true, true, true, true, true},
-                    {true, true, true, true, true},
-                    {true, true, true, true, true},
-                    {true, true, true, true, true},
-                    {true, true, true, true, true}
-            };
-            // Hexágono (forma aproximada 5×5)
-            case "HEXAGONO" -> new boolean[][] {
-                    {false, true,  true,  true,  false},
-                    {true,  true,  true,  true,  true },
-                    {true,  true,  true,  true,  true },
-                    {true,  true,  true,  true,  true },
-                    {false, true,  true,  true,  false}
-            };
-            // Segmento de linha horizontal
-            case "LINHA" -> new boolean[][] {
-                    {false, false, false, false, false},
-                    {false, false, false, false, false},
-                    {true,  true,  true,  true,  true },
-                    {false, false, false, false, false},
-                    {false, false, false, false, false}
-            };
-            // Par de Pontos: centro + vizinho à direita com gap
-            case "PONTOS" -> new boolean[][] {
-                    {false, false, false, false, false},
-                    {false, false, false, false, false},
-                    {false, false, true,  false, true },
-                    {false, false, false, false, false},
-                    {false, false, false, false, false}
-            };
-            default -> new boolean[][]{{true}};
-        };
-    }
-
-    // ── Erosão binária ────────────────────────────────────────────────────────────
-    /**
-     * Um pixel de saída é branco (255) somente se TODOS os pixels cobertos
-     * pelo SE são brancos na imagem de entrada.
-     */
-    private BufferedImage erode(BufferedImage src, boolean[][] se) {
-        int w = src.getWidth(), h = src.getHeight();
-        int kr = se.length / 2, kc = se[0].length / 2;
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                boolean fit = true;
-                outer:
-                for (int ky = 0; ky < se.length && fit; ky++) {
-                    for (int kx = 0; kx < se[0].length && fit; kx++) {
-                        if (!se[ky][kx]) continue;
-                        int nx = x + kx - kc;
-                        int ny = y + ky - kr;
-                        if (nx < 0 || nx >= w || ny < 0 || ny >= h) {
-                            fit = false;
-                        } else {
-                            int lum = (src.getRGB(nx, ny) >> 16) & 0xFF;
-                            if (lum < 128) fit = false;
-                        }
-                    }
-                }
-                int v = fit ? 255 : 0;
-                int a = (src.getRGB(x, y) >> 24) & 0xFF;
-                out.setRGB(x, y, (a << 24) | (v << 16) | (v << 8) | v);
-            }
-        }
-        return out;
-    }
-
-    // ── Dilatação binária ─────────────────────────────────────────────────────────
-    /**
-     * Um pixel de saída é branco (255) se PELO MENOS UM pixel coberto
-     * pelo SE é branco na imagem de entrada.
-     */
-    private BufferedImage dilate(BufferedImage src, boolean[][] se) {
-        int w = src.getWidth(), h = src.getHeight();
-        int kr = se.length / 2, kc = se[0].length / 2;
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                boolean hit = false;
-                outer:
-                for (int ky = 0; ky < se.length; ky++) {
-                    for (int kx = 0; kx < se[0].length; kx++) {
-                        if (!se[ky][kx]) continue;
-                        int nx = x + kx - kc;
-                        int ny = y + ky - kr;
-                        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-                        int lum = (src.getRGB(nx, ny) >> 16) & 0xFF;
-                        if (lum >= 128) { hit = true; break outer; }
-                    }
-                }
-                int v = hit ? 255 : 0;
-                int a = (src.getRGB(x, y) >> 24) & 0xFF;
-                out.setRGB(x, y, (a << 24) | (v << 16) | (v << 8) | v);
-            }
-        }
-        return out;
-    }
-
     // ══════════════════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════════════════
-
-    private int clamp(int v)   { return Math.min(255, Math.max(0, v)); }
-    private int clamp(float v) { return Math.min(255, Math.max(0, (int)v)); }
-
-    @SuppressWarnings("unused")
-    private BufferedImage deepCopy(BufferedImage bi) {
-        ColorModel cm = bi.getColorModel();
-        WritableRaster r = bi.copyData(bi.getRaster().createCompatibleWritableRaster());
-        return new BufferedImage(cm, r, cm.isAlphaPremultiplied(), null);
-    }
 
     private void displayImage(BufferedImage img, boolean isInput) {
         JPanel area = getImageArea(isInput);
@@ -1600,6 +1030,7 @@ public class PhotoEditorFrame extends JFrame {
                     btnModa, btnGauss,
                     btnRoberts, btnSobel, btnRobinson, btnFreiChen,
                     btnMarrHildreth, btnCanny,
+                    btnStentiford, btnZhangSuen, btnHolt,
                     btnBrilho, btnContraste
             }) if (b != null) b.repaint();
         });
