@@ -27,8 +27,17 @@ public class PhotoEditorFrame extends JFrame {
     private BufferedImage preSliderImage = null;
     private String activeFilter = null;
     
-    // Histórico de filtros
-    private java.util.List<String> filterHistory = new ArrayList<>();
+    // Histórico de filtros via Configuração
+    private class FilterConfig {
+        String key;
+        String display;
+        
+        int vBrilho, vContraste, vThreshold, vRobertsThresh, vSobelThresh, vRobinsonThresh;
+        double vFreiChenThresh, vMarrSigma, vCannyLow, vCannyHigh;
+        String morphOp, selectedStructElement;
+        int morphIter;
+    }
+    private java.util.List<FilterConfig> activeFilters = new ArrayList<>();
 
     // --- Componentes ---
     private JPanel inputPanel, outputPanel;
@@ -38,8 +47,7 @@ public class PhotoEditorFrame extends JFrame {
 
     // Histórico Painel
     private JPanel historyPanel;
-    private JList<String> historyList;
-    private DefaultListModel<String> historyListModel;
+    private JPanel historyContainerPanel;
     private JToggleButton btnToggleHistory;
 
     // Botões — Arquivo
@@ -230,49 +238,101 @@ public class PhotoEditorFrame extends JFrame {
         lblTitle.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         historyPanel.add(lblTitle, BorderLayout.NORTH);
 
-        historyListModel = new DefaultListModel<>();
-        historyList = new JList<>(historyListModel);
-        historyList.setBackground(BG_DARK);
-        historyList.setForeground(TEXT_PRIMARY);
-        historyList.setFont(new Font("Monospaced", Font.PLAIN, 11));
-        historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        historyContainerPanel = new JPanel();
+        historyContainerPanel.setLayout(new BoxLayout(historyContainerPanel, BoxLayout.Y_AXIS));
+        historyContainerPanel.setBackground(BG_DARK);
         
-        JScrollPane scroll = new JScrollPane(historyList);
+        JScrollPane scroll = new JScrollPane(historyContainerPanel,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
         historyPanel.add(scroll, BorderLayout.CENTER);
 
         return historyPanel;
     }
 
-    private void addHistoryEntry(String entry) {
+    private void updateHistoryUI() {
         SwingUtilities.invokeLater(() -> {
-            filterHistory.add(entry);
-            historyListModel.addElement((historyListModel.size() + 1) + ". " + entry);
-            // Auto-scroll to bottom
-            int lastIndex = historyListModel.getSize() - 1;
-            if (lastIndex >= 0) {
-                historyList.ensureIndexIsVisible(lastIndex);
+            historyContainerPanel.removeAll();
+            for (int i = 0; i < activeFilters.size(); i++) {
+                final int index = i;
+                FilterConfig cfg = activeFilters.get(i);
+                
+                JPanel row = new JPanel(new BorderLayout());
+                row.setBackground(BG_CARD);
+                row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+                row.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+                
+                JLabel lbl = new JLabel((i + 1) + ". " + cfg.display);
+                lbl.setFont(new Font("Monospaced", Font.PLAIN, 11));
+                lbl.setForeground(TEXT_PRIMARY);
+                
+                JButton btnDel = new JButton("✕");
+                btnDel.setFont(new Font("SansSerif", Font.BOLD, 12));
+                btnDel.setForeground(ACCENT);
+                btnDel.setContentAreaFilled(false);
+                btnDel.setBorderPainted(false);
+                btnDel.setFocusPainted(false);
+                btnDel.setMargin(new Insets(0, 0, 0, 0));
+                btnDel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                btnDel.addActionListener(e -> removeFilterAt(index));
+                
+                row.add(lbl, BorderLayout.CENTER);
+                row.add(btnDel, BorderLayout.EAST);
+                
+                historyContainerPanel.add(row);
+                historyContainerPanel.add(Box.createVerticalStrut(2));
             }
+            historyContainerPanel.revalidate();
+            historyContainerPanel.repaint();
         });
     }
 
-    private void updateLastHistoryEntry(String entry) {
-        SwingUtilities.invokeLater(() -> {
-            if (!filterHistory.isEmpty() && !historyListModel.isEmpty()) {
-                int lastIndex = filterHistory.size() - 1;
-                filterHistory.set(lastIndex, entry);
-                historyListModel.set(lastIndex, (lastIndex + 1) + ". " + entry);
-            } else {
-                addHistoryEntry(entry);
-            }
-        });
+    private void removeFilterAt(int index) {
+        if (index >= 0 && index < activeFilters.size()) {
+            activeFilters.remove(index);
+            recomputeFilters();
+        }
     }
 
-    private void clearHistory() {
-        SwingUtilities.invokeLater(() -> {
-            filterHistory.clear();
-            historyListModel.clear();
-        });
+    private void recomputeFilters() {
+        if (originalImage == null) return;
+        
+        if (activeFilters.isEmpty()) {
+            filteredImage = null;
+            preSliderImage = null;
+            activeFilter = null;
+            clearOutput();
+            updateStatus("Filtros removidos");
+            repaintButtons();
+            updateHistoryUI();
+            return;
+        }
+        
+        final java.util.List<FilterConfig> snapshot = new ArrayList<>(activeFilters);
+        
+        SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
+            @Override protected BufferedImage doInBackground() {
+                BufferedImage current = originalImage;
+                for (FilterConfig cfg : snapshot) {
+                    current = applyConfig(current, cfg);
+                }
+                return current;
+            }
+            @Override protected void done() {
+                try {
+                    filteredImage = get();
+                    preSliderImage = filteredImage;
+                    displayImage(filteredImage, false);
+                    updateStatus("Filtros recalculados: " + snapshot.size());
+                    updateHistoryUI();
+                } catch (Exception ex) {
+                    logger.log(java.util.logging.Level.SEVERE, "Erro ao recalcular", ex);
+                }
+            }
+        };
+        worker.execute();
     }
 
     // ── Painel de imagem ─────────────────────────────────────────────────────────
@@ -539,7 +599,6 @@ public class PhotoEditorFrame extends JFrame {
                     preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
                     activeFilter = "THRESHOLD";
                     repaintButtons();
-                    addHistoryEntry("THRESHOLD (128)");
                 }
                 applyFilterAsync("THRESHOLD", true);
             }
@@ -728,7 +787,8 @@ public class PhotoEditorFrame extends JFrame {
                 if (seButtons != null) for (JButton b : seButtons) b.repaint();
                 displayImage(originalImage, true);
                 clearOutput();
-                clearHistory();
+                activeFilters.clear();
+                updateHistoryUI();
                 updateStatus(file.getName() + "  —  " +
                         originalImage.getWidth() + " × " + originalImage.getHeight() + " px");
                 repaintButtons();
@@ -785,9 +845,88 @@ public class PhotoEditorFrame extends JFrame {
         sliderThreshold.setValue(128);
 
         clearOutput();
-        clearHistory();
+        activeFilters.clear();
+        updateHistoryUI();
         updateStatus("Imagem resetada.");
         repaintButtons();
+    }
+    
+    // ── Histórico Lógica ─────────────────────────────────────────────────────────
+
+    private FilterConfig createCurrentConfig(String key, String display) {
+        FilterConfig c = new FilterConfig();
+        c.key = key;
+        c.display = display;
+        c.vBrilho = sliderBrilho.getValue();
+        c.vContraste = sliderContraste.getValue();
+        c.vThreshold = sliderThreshold.getValue();
+        c.vRobertsThresh = sliderRobertsThresh.getValue();
+        c.vSobelThresh = sliderSobelThresh.getValue();
+        c.vRobinsonThresh = sliderRobinsonThresh.getValue();
+        c.vFreiChenThresh = sliderFreiChenThresh.getValue() / 100.0;
+        c.vMarrSigma = sliderMarrSigma.getValue() / 10.0;
+        c.vCannyLow = sliderCannyLow.getValue();
+        c.vCannyHigh = sliderCannyHigh.getValue();
+        c.morphOp = key;
+        c.selectedStructElement = selectedStructElement;
+        c.morphIter = sliderMorphIter.getValue();
+        return c;
+    }
+    
+    private String getFilterDisplayName(String filterKey) {
+        return switch (filterKey) {
+            case "ROBERTS"       -> "ROBERTS (" + sliderRobertsThresh.getValue() + ")";
+            case "SOBEL"         -> "SOBEL (" + sliderSobelThresh.getValue() + ")";
+            case "ROBINSON"      -> "ROBINSON (" + sliderRobinsonThresh.getValue() + ")";
+            case "FREI_CHEN"     -> String.format("FREI_CHEN (%.0f%%)", sliderFreiChenThresh.getValue() / 100.0 * 100);
+            case "MARR_HILDRETH" -> String.format("MARR_HILDRETH (%.1f)", sliderMarrSigma.getValue() / 10.0);
+            case "CANNY"         -> String.format("CANNY (%.0f/%.0f)", (double)sliderCannyLow.getValue(), (double)sliderCannyHigh.getValue());
+            case "BRILHO"        -> "BRILHO (" + sliderBrilho.getValue() + ")";
+            case "CONTRASTE"     -> "CONTRASTE (" + sliderContraste.getValue() + ")";
+            case "THRESHOLD"     -> "THRESHOLD (" + sliderThreshold.getValue() + ")";
+            case "EROSAO", "DILATACAO", "ABERTURA", "FECHAMENTO" -> "Morfologia: " + filterKey + " (iters: " + sliderMorphIter.getValue() + ")";
+            default              -> filterKey;
+        };
+    }
+
+    private BufferedImage applyConfig(BufferedImage input, FilterConfig cfg) {
+        return switch (cfg.key) {
+            case "TRANSLADAR"    -> GeometricFilters.transladar(input, 15, 10);
+            case "AMPLIAR"       -> GeometricFilters.escalar(input, 1.5, 1.5);
+            case "REDUZIR"       -> GeometricFilters.escalar(input, 0.5, 0.5);
+            case "ROTACIONAR"    -> GeometricFilters.rotacionar(input, 45);
+            case "ESPELHAR_H"    -> GeometricFilters.espelharHorizontal(input);
+            case "ESPELHAR_V"    -> GeometricFilters.espelharVertical(input);
+            case "CONVOLUCAO"    -> LowPassFilters.convolucao(input, new float[][]{
+                    {1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f}
+            });
+            case "MEDIANA"       -> LowPassFilters.mediana(input, 3);
+            case "MODA"          -> LowPassFilters.moda(input, 3);
+            case "GAUSS"         -> LowPassFilters.gaussiano(input, 3, 1.0);
+            case "ROBERTS"       -> EdgeDetectionFilters.robertsCross(input, cfg.vRobertsThresh);
+            case "SOBEL"         -> EdgeDetectionFilters.sobel(input, cfg.vSobelThresh);
+            case "ROBINSON"      -> EdgeDetectionFilters.robinsonCompass(input, cfg.vRobinsonThresh);
+            case "FREI_CHEN"     -> EdgeDetectionFilters.freiChen(input, cfg.vFreiChenThresh);
+            case "MARR_HILDRETH" -> EdgeDetectionFilters.marrHildreth(input, 5, cfg.vMarrSigma);
+            case "CANNY"         -> EdgeDetectionFilters.canny(input, cfg.vCannyLow, cfg.vCannyHigh);
+            case "STENTIFORD"    -> ThinningFilters.stentiford(input);
+            case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(input);
+            case "HOLT"          -> ThinningFilters.holt(input);
+            case "BRILHO"        -> ColorFilters.brilho(input, cfg.vBrilho);
+            case "CONTRASTE"     -> ColorFilters.contraste(input, cfg.vContraste);
+            case "THRESHOLD"     -> ColorFilters.threshold(input, cfg.vThreshold);
+            case "EROSAO"        -> MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
+            case "DILATACAO"     -> MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
+            case "ABERTURA"      -> {
+                BufferedImage e = MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
+                yield MorphologyFilters.aplicarNVezes(e, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
+            }
+            case "FECHAMENTO"    -> {
+                BufferedImage d = MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
+                yield MorphologyFilters.aplicarNVezes(d, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
+            }
+            default              -> input;
+        };
     }
 
     // ── Aplicar filtro ────────────────────────────────────────────────────────────
@@ -798,15 +937,9 @@ public class PhotoEditorFrame extends JFrame {
             return;
         }
         
-        // Quando clica no botão, a base para o slider é a imagem filtrada atualmente
         preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
         activeFilter = filterKey;
         repaintButtons();
-        
-        // Add default entry initially, then it might get updated for sliders
-        if (filterKey.equals("ROBERTS") || filterKey.equals("SOBEL") || filterKey.equals("ROBINSON") || filterKey.equals("FREI_CHEN") || filterKey.equals("MARR_HILDRETH") || filterKey.equals("CANNY") || filterKey.equals("BRILHO") || filterKey.equals("CONTRASTE")) {
-             addHistoryEntry(filterKey);
-        }
         
         applyFilterAsync(filterKey, false);
     }
@@ -815,82 +948,39 @@ public class PhotoEditorFrame extends JFrame {
     private void applyFilterAsync(String filterKey, boolean fromSlider) {
         if (originalImage == null) return;
         
+        String displayStr = getFilterDisplayName(filterKey);
+        
+        if (fromSlider && !activeFilters.isEmpty()) {
+            FilterConfig last = activeFilters.get(activeFilters.size() - 1);
+            if (last.key.equals(filterKey)) {
+                activeFilters.set(activeFilters.size() - 1, createCurrentConfig(filterKey, displayStr));
+            } else {
+                activeFilters.add(createCurrentConfig(filterKey, displayStr));
+            }
+        } else {
+            activeFilters.add(createCurrentConfig(filterKey, displayStr));
+        }
+        
+        updateHistoryUI();
+        
         final BufferedImage input;
         if (fromSlider) {
-            // Se o evento for do slider, usa a imagem salva antes do slider começar
             input = (preSliderImage != null) ? preSliderImage : originalImage;
         } else {
-            // Se for botão de filtro ou primeira vez, usa a imagem atual (ou original)
             input = (filteredImage != null) ? filteredImage : originalImage;
         }
 
-        final int    vBrilho            = sliderBrilho.getValue();
-        final int    vContraste         = sliderContraste.getValue();
-        final int    vThreshold         = sliderThreshold.getValue();
-        final int    vRobertsThresh     = sliderRobertsThresh.getValue();
-        final int    vSobelThresh       = sliderSobelThresh.getValue();
-        final int    vRobinsonThresh    = sliderRobinsonThresh.getValue();
-        final double vFreiChenThresh    = sliderFreiChenThresh.getValue() / 100.0;
-        final double vMarrSigma         = sliderMarrSigma.getValue() / 10.0;
-        final double vCannyLow          = sliderCannyLow.getValue();
-        final double vCannyHigh         = sliderCannyHigh.getValue();
+        final FilterConfig cfg = activeFilters.get(activeFilters.size() - 1);
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override protected BufferedImage doInBackground() {
-                return switch (filterKey) {
-                    case "TRANSLADAR"    -> GeometricFilters.transladar(input, 15, 10);
-                    case "AMPLIAR"       -> GeometricFilters.escalar(input, 1.5, 1.5);
-                    case "REDUZIR"       -> GeometricFilters.escalar(input, 0.5, 0.5);
-                    case "ROTACIONAR"    -> GeometricFilters.rotacionar(input, 45);
-                    case "ESPELHAR_H"    -> GeometricFilters.espelharHorizontal(input);
-                    case "ESPELHAR_V"    -> GeometricFilters.espelharVertical(input);
-                    case "CONVOLUCAO"    -> LowPassFilters.convolucao(input, new float[][]{
-                            {1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f}
-                    });
-                    case "MEDIANA"       -> LowPassFilters.mediana(input, 3);
-                    case "MODA"          -> LowPassFilters.moda(input, 3);
-                    case "GAUSS"         -> LowPassFilters.gaussiano(input, 3, 1.0);
-                    case "ROBERTS"       -> EdgeDetectionFilters.robertsCross(input, vRobertsThresh);
-                    case "SOBEL"         -> EdgeDetectionFilters.sobel(input, vSobelThresh);
-                    case "ROBINSON"      -> EdgeDetectionFilters.robinsonCompass(input, vRobinsonThresh);
-                    case "FREI_CHEN"     -> EdgeDetectionFilters.freiChen(input, vFreiChenThresh);
-                    case "MARR_HILDRETH" -> EdgeDetectionFilters.marrHildreth(input, 5, vMarrSigma);
-                    case "CANNY"         -> EdgeDetectionFilters.canny(input, vCannyLow, vCannyHigh);
-                    case "STENTIFORD"    -> ThinningFilters.stentiford(input);
-                    case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(input);
-                    case "HOLT"          -> ThinningFilters.holt(input);
-                    case "BRILHO"        -> ColorFilters.brilho(input, vBrilho);
-                    case "CONTRASTE"     -> ColorFilters.contraste(input, vContraste);
-                    case "THRESHOLD"     -> ColorFilters.threshold(input, vThreshold);
-                    default              -> input;
-                };
+                return applyConfig(input, cfg);
             }
             @Override protected void done() {
                 try {
                     filteredImage = get();
                     displayImage(filteredImage, false);
                     updateStatus("Filtro: " + filterKey);
-                    
-                    if (!fromSlider) {
-                         if (!filterKey.equals("ROBERTS") && !filterKey.equals("SOBEL") && !filterKey.equals("ROBINSON") && !filterKey.equals("FREI_CHEN") && !filterKey.equals("MARR_HILDRETH") && !filterKey.equals("CANNY") && !filterKey.equals("BRILHO") && !filterKey.equals("CONTRASTE")) {
-                             addHistoryEntry(filterKey);
-                         }
-                    } else {
-                        // Update the last history entry with the new slider value
-                        String valStr = switch (filterKey) {
-                            case "ROBERTS"       -> String.valueOf(vRobertsThresh);
-                            case "SOBEL"         -> String.valueOf(vSobelThresh);
-                            case "ROBINSON"      -> String.valueOf(vRobinsonThresh);
-                            case "FREI_CHEN"     -> String.format("%.0f%%", vFreiChenThresh * 100);
-                            case "MARR_HILDRETH" -> String.format("%.1f", vMarrSigma);
-                            case "CANNY"         -> String.format("%.0f/%.0f", vCannyLow, vCannyHigh);
-                            case "BRILHO"        -> String.valueOf(vBrilho);
-                            case "CONTRASTE"     -> String.valueOf(vContraste);
-                            case "THRESHOLD"     -> String.valueOf(vThreshold);
-                            default              -> "";
-                        };
-                        updateLastHistoryEntry(filterKey + " (" + valStr + ")");
-                    }
                 } catch (Exception ex) {
                     logger.log(java.util.logging.Level.SEVERE, "Erro no filtro", ex);
                 }
@@ -1078,19 +1168,9 @@ public class PhotoEditorFrame extends JFrame {
         selectedStructElement = key;
         if (seButtons != null) for (JButton b : seButtons) b.repaint();
         
-        // Usar a imagem filtrada atual como entrada
-        final BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
-
         if (morphThreshEnabled) {
-            morphBaseImage = ColorFilters.threshold(input, 128);
-            filteredImage  = morphBaseImage;
-            displayImage(filteredImage, false);
-            updateStatus("SE: " + key + " — imagem binarizada (limiar 128)");
-        } else {
-            morphBaseImage = input;
-            filteredImage  = input;
-            displayImage(filteredImage, false);
-            updateStatus("SE: " + key + " — sem threshold (imagem original)");
+            // Se ativado, binariza a imagem automaticamente no histórico
+            applyFilter("THRESHOLD");
         }
     }
 
@@ -1108,44 +1188,11 @@ public class PhotoEditorFrame extends JFrame {
             return;
         }
 
-        // Usa filteredImage como entrada (permite composição erosão+dilatação, etc.)
-        // Se não houver imagem filtrada ainda, binariza a original
-        final BufferedImage base = (filteredImage != null)
-                ? filteredImage
-                : ColorFilters.threshold(originalImage, 128);
-        final boolean[][] se    = MorphologyFilters.getStructuringElement(selectedStructElement);
-        final int         iters = sliderMorphIter.getValue();
-
-        SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
-            @Override protected BufferedImage doInBackground() {
-                return switch (op) {
-                    case "EROSAO"    -> MorphologyFilters.aplicarNVezes(base, se, iters, true);
-                    case "DILATACAO" -> MorphologyFilters.aplicarNVezes(base, se, iters, false);
-                    // Abertura  = erosão(N) → dilatação(N)
-                    case "ABERTURA"  -> {
-                        BufferedImage e = MorphologyFilters.aplicarNVezes(base, se, iters, true);
-                        yield MorphologyFilters.aplicarNVezes(e, se, iters, false);
-                    }
-                    // Fechamento = dilatação(N) → erosão(N)
-                    case "FECHAMENTO" -> {
-                        BufferedImage d = MorphologyFilters.aplicarNVezes(base, se, iters, false);
-                        yield MorphologyFilters.aplicarNVezes(d, se, iters, true);
-                    }
-                    default -> base;
-                };
-            }
-            @Override protected void done() {
-                try {
-                    filteredImage = get();
-                    displayImage(filteredImage, false);
-                    updateStatus(op + " ×" + iters + "  [SE: " + selectedStructElement + "]");
-                    addHistoryEntry("Morfologia: " + op + " (iters: " + iters + ")");
-                } catch (Exception ex) {
-                    logger.log(java.util.logging.Level.SEVERE, "Erro morfologia", ex);
-                }
-            }
-        };
-        worker.execute();
+        preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
+        activeFilter = op;
+        repaintButtons();
+        
+        applyFilterAsync(op, false);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
