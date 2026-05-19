@@ -70,6 +70,9 @@ public class PhotoEditorFrame extends JFrame {
     // Botões — Cor
     private JButton btnBrilho, btnContraste;
 
+    // Botões — Desafios
+    private JButton btnReadClock;
+
     // ── Sliders de cor ──────────────────────────────────────────────────────────
     private JSlider sliderBrilho, sliderContraste, sliderThreshold;
     private JLabel  valBrilho,    valContraste,    valThreshold;
@@ -614,6 +617,37 @@ public class PhotoEditorFrame extends JFrame {
 
         // ── MORFOLOGIA ───────────────────────────────────────────────────────
         buildMorphologySection(inner);
+        inner.add(Box.createVerticalStrut(13));
+        
+        // ── DESAFIOS ─────────────────────────────────────────────────────────
+        addSection(inner, "DESAFIOS");
+        inner.add(Box.createVerticalStrut(4));
+        
+        btnReadClock = makeActionButton("⌚  Ex. 1 - Ler Relógio", new Color(150, 70, 180));
+        btnReadClock.addActionListener(e -> {
+            if (originalImage == null) {
+                JOptionPane.showMessageDialog(this, "Carregue a imagem do relógio primeiro.", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
+            String time = ChallengeFilters.readClock(input);
+            
+            // Build history string to show to user
+            StringBuilder historyStr = new StringBuilder();
+            if (activeFilters.isEmpty()) {
+                historyStr.append("Nenhum filtro aplicado.");
+            } else {
+                for (int i = 0; i < activeFilters.size(); i++) {
+                    historyStr.append((i + 1)).append(". ").append(activeFilters.get(i).display).append("\n");
+                }
+            }
+            
+            String message = "Horário identificado: " + time + "\n\nFiltros usados:\n" + historyStr.toString();
+            
+            JOptionPane.showMessageDialog(this, message, "Resultado - Ler Relógio", JOptionPane.INFORMATION_MESSAGE);
+            updateStatus("Desafio 1: " + time);
+        });
+        addSideBtn(inner, btnReadClock);
 
         inner.add(Box.createVerticalGlue());
 
