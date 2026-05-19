@@ -9,6 +9,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.ArrayList;
 import javax.imageio.ImageIO;
 
 /**
@@ -25,12 +26,21 @@ public class PhotoEditorFrame extends JFrame {
     // Salva a imagem antes do slider começar a modificar para não acumular
     private BufferedImage preSliderImage = null;
     private String activeFilter = null;
+    
+    // Histórico de filtros
+    private java.util.List<String> filterHistory = new ArrayList<>();
 
     // --- Componentes ---
     private JPanel inputPanel, outputPanel;
     private JLabel inputImageLabel, outputImageLabel;
     private JLabel inputPlaceholderLabel, outputPlaceholderLabel;
     private JLabel statusLabel;
+
+    // Histórico Painel
+    private JPanel historyPanel;
+    private JList<String> historyList;
+    private DefaultListModel<String> historyListModel;
+    private JToggleButton btnToggleHistory;
 
     // Botões — Arquivo
     private JButton btnLoadImage, btnSaveImage;
@@ -144,6 +154,8 @@ public class PhotoEditorFrame extends JFrame {
         root.add(center, BorderLayout.CENTER);
 
         root.add(buildSidebar(), BorderLayout.WEST);
+        
+        root.add(buildHistoryPanel(), BorderLayout.EAST);
 
         pack();
         setLocationRelativeTo(null);
@@ -176,13 +188,91 @@ public class PhotoEditorFrame extends JFrame {
         left.add(dot); left.add(title); left.add(version);
         header.add(left, BorderLayout.WEST);
 
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        right.setOpaque(false);
+        
         statusLabel = new JLabel("Nenhuma imagem carregada");
         statusLabel.setFont(new Font("Monospaced", Font.PLAIN, 11));
         statusLabel.setForeground(TEXT_MUTED);
-        statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 4));
-        header.add(statusLabel, BorderLayout.EAST);
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 10));
+        right.add(statusLabel);
+
+        btnToggleHistory = new JToggleButton("Histórico");
+        btnToggleHistory.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        btnToggleHistory.setForeground(TEXT_PRIMARY);
+        btnToggleHistory.setBackground(BTN_NORMAL);
+        btnToggleHistory.setFocusPainted(false);
+        btnToggleHistory.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+        btnToggleHistory.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btnToggleHistory.addActionListener(e -> {
+            historyPanel.setVisible(btnToggleHistory.isSelected());
+            revalidate();
+            repaint();
+        });
+        right.add(btnToggleHistory);
+
+        header.add(right, BorderLayout.EAST);
 
         return header;
+    }
+    
+    // ── Painel de Histórico ──────────────────────────────────────────────────────
+    private JPanel buildHistoryPanel() {
+        historyPanel = new JPanel(new BorderLayout());
+        historyPanel.setBackground(BG_PANEL);
+        historyPanel.setBorder(new MatteBorder(0, 1, 0, 0, BORDER_COLOR));
+        historyPanel.setPreferredSize(new Dimension(250, 0));
+        historyPanel.setVisible(false); // Colapsado por padrão
+
+        JLabel lblTitle = new JLabel("HISTÓRICO");
+        lblTitle.setFont(new Font("Monospaced", Font.BOLD, 12));
+        lblTitle.setForeground(TEXT_PRIMARY);
+        lblTitle.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        historyPanel.add(lblTitle, BorderLayout.NORTH);
+
+        historyListModel = new DefaultListModel<>();
+        historyList = new JList<>(historyListModel);
+        historyList.setBackground(BG_DARK);
+        historyList.setForeground(TEXT_PRIMARY);
+        historyList.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        
+        JScrollPane scroll = new JScrollPane(historyList);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        historyPanel.add(scroll, BorderLayout.CENTER);
+
+        return historyPanel;
+    }
+
+    private void addHistoryEntry(String entry) {
+        SwingUtilities.invokeLater(() -> {
+            filterHistory.add(entry);
+            historyListModel.addElement((historyListModel.size() + 1) + ". " + entry);
+            // Auto-scroll to bottom
+            int lastIndex = historyListModel.getSize() - 1;
+            if (lastIndex >= 0) {
+                historyList.ensureIndexIsVisible(lastIndex);
+            }
+        });
+    }
+
+    private void updateLastHistoryEntry(String entry) {
+        SwingUtilities.invokeLater(() -> {
+            if (!filterHistory.isEmpty() && !historyListModel.isEmpty()) {
+                int lastIndex = filterHistory.size() - 1;
+                filterHistory.set(lastIndex, entry);
+                historyListModel.set(lastIndex, (lastIndex + 1) + ". " + entry);
+            } else {
+                addHistoryEntry(entry);
+            }
+        });
+    }
+
+    private void clearHistory() {
+        SwingUtilities.invokeLater(() -> {
+            filterHistory.clear();
+            historyListModel.clear();
+        });
     }
 
     // ── Painel de imagem ─────────────────────────────────────────────────────────
@@ -449,6 +539,7 @@ public class PhotoEditorFrame extends JFrame {
                     preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
                     activeFilter = "THRESHOLD";
                     repaintButtons();
+                    addHistoryEntry("THRESHOLD (128)");
                 }
                 applyFilterAsync("THRESHOLD", true);
             }
@@ -637,6 +728,7 @@ public class PhotoEditorFrame extends JFrame {
                 if (seButtons != null) for (JButton b : seButtons) b.repaint();
                 displayImage(originalImage, true);
                 clearOutput();
+                clearHistory();
                 updateStatus(file.getName() + "  —  " +
                         originalImage.getWidth() + " × " + originalImage.getHeight() + " px");
                 repaintButtons();
@@ -693,6 +785,7 @@ public class PhotoEditorFrame extends JFrame {
         sliderThreshold.setValue(128);
 
         clearOutput();
+        clearHistory();
         updateStatus("Imagem resetada.");
         repaintButtons();
     }
@@ -709,6 +802,12 @@ public class PhotoEditorFrame extends JFrame {
         preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
         activeFilter = filterKey;
         repaintButtons();
+        
+        // Add default entry initially, then it might get updated for sliders
+        if (filterKey.equals("ROBERTS") || filterKey.equals("SOBEL") || filterKey.equals("ROBINSON") || filterKey.equals("FREI_CHEN") || filterKey.equals("MARR_HILDRETH") || filterKey.equals("CANNY") || filterKey.equals("BRILHO") || filterKey.equals("CONTRASTE")) {
+             addHistoryEntry(filterKey);
+        }
+        
         applyFilterAsync(filterKey, false);
     }
 
@@ -771,6 +870,27 @@ public class PhotoEditorFrame extends JFrame {
                     filteredImage = get();
                     displayImage(filteredImage, false);
                     updateStatus("Filtro: " + filterKey);
+                    
+                    if (!fromSlider) {
+                         if (!filterKey.equals("ROBERTS") && !filterKey.equals("SOBEL") && !filterKey.equals("ROBINSON") && !filterKey.equals("FREI_CHEN") && !filterKey.equals("MARR_HILDRETH") && !filterKey.equals("CANNY") && !filterKey.equals("BRILHO") && !filterKey.equals("CONTRASTE")) {
+                             addHistoryEntry(filterKey);
+                         }
+                    } else {
+                        // Update the last history entry with the new slider value
+                        String valStr = switch (filterKey) {
+                            case "ROBERTS"       -> String.valueOf(vRobertsThresh);
+                            case "SOBEL"         -> String.valueOf(vSobelThresh);
+                            case "ROBINSON"      -> String.valueOf(vRobinsonThresh);
+                            case "FREI_CHEN"     -> String.format("%.0f%%", vFreiChenThresh * 100);
+                            case "MARR_HILDRETH" -> String.format("%.1f", vMarrSigma);
+                            case "CANNY"         -> String.format("%.0f/%.0f", vCannyLow, vCannyHigh);
+                            case "BRILHO"        -> String.valueOf(vBrilho);
+                            case "CONTRASTE"     -> String.valueOf(vContraste);
+                            case "THRESHOLD"     -> String.valueOf(vThreshold);
+                            default              -> "";
+                        };
+                        updateLastHistoryEntry(filterKey + " (" + valStr + ")");
+                    }
                 } catch (Exception ex) {
                     logger.log(java.util.logging.Level.SEVERE, "Erro no filtro", ex);
                 }
@@ -1019,6 +1139,7 @@ public class PhotoEditorFrame extends JFrame {
                     filteredImage = get();
                     displayImage(filteredImage, false);
                     updateStatus(op + " ×" + iters + "  [SE: " + selectedStructElement + "]");
+                    addHistoryEntry("Morfologia: " + op + " (iters: " + iters + ")");
                 } catch (Exception ex) {
                     logger.log(java.util.logging.Level.SEVERE, "Erro morfologia", ex);
                 }
