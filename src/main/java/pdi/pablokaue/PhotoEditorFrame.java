@@ -68,7 +68,7 @@ public class PhotoEditorFrame extends JFrame {
     private JButton btnStentiford, btnZhangSuen, btnHolt;
 
     // Botões — Cor
-    private JButton btnBrilho, btnContraste;
+    private JButton btnGrayscale, btnBrilho, btnContraste;
 
     // Botões — Desafios
     private JButton btnReadClock;
@@ -561,6 +561,10 @@ public class PhotoEditorFrame extends JFrame {
         addSection(inner, "TRANSFORMÇÕES PONTUAIS");
         inner.add(Box.createVerticalStrut(6));
 
+        btnGrayscale = makeFilterButton("◐  Escala de Cinza", "GRAYSCALE");
+        addSideBtn(inner, btnGrayscale);
+        inner.add(Box.createVerticalStrut(13));
+
         // ── BRILHO ───────────────────────────────────────────────────────────
         addSection(inner, "BRILHO");
         inner.add(Box.createVerticalStrut(4));
@@ -909,6 +913,7 @@ public class PhotoEditorFrame extends JFrame {
     
     private String getFilterDisplayName(String filterKey) {
         return switch (filterKey) {
+            case "GRAYSCALE"     -> "Grayscale";
             case "ROBERTS"       -> "ROBERTS (" + sliderRobertsThresh.getValue() + ")";
             case "SOBEL"         -> "SOBEL (" + sliderSobelThresh.getValue() + ")";
             case "ROBINSON"      -> "ROBINSON (" + sliderRobinsonThresh.getValue() + ")";
@@ -946,6 +951,7 @@ public class PhotoEditorFrame extends JFrame {
             case "STENTIFORD"    -> ThinningFilters.stentiford(input);
             case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(input);
             case "HOLT"          -> ThinningFilters.holt(input);
+            case "GRAYSCALE"     -> ColorFilters.grayscale(input);
             case "BRILHO"        -> ColorFilters.brilho(input, cfg.vBrilho);
             case "CONTRASTE"     -> ColorFilters.contraste(input, cfg.vContraste);
             case "THRESHOLD"     -> ColorFilters.threshold(input, cfg.vThreshold);
@@ -1280,7 +1286,7 @@ public class PhotoEditorFrame extends JFrame {
                     btnRoberts, btnSobel, btnRobinson, btnFreiChen,
                     btnMarrHildreth, btnCanny,
                     btnStentiford, btnZhangSuen, btnHolt,
-                    btnBrilho, btnContraste
+                    btnGrayscale, btnBrilho, btnContraste
             }) if (b != null) b.repaint();
         });
     }

@@ -46,4 +46,16 @@ public class ColorFilters {
         }
         return out;
     }
+
+    public static BufferedImage grayscale(BufferedImage src) {
+        int w=src.getWidth(), h=src.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
+            int rgb=src.getRGB(x,y), a=(rgb>>24)&0xFF;
+            int r=(rgb>>16)&0xFF, g=(rgb>>8)&0xFF, b=rgb&0xFF;
+            int lum=(int)(0.299*r+0.587*g+0.114*b);
+            out.setRGB(x,y,(a<<24)|(lum<<16)|(lum<<8)|lum);
+        }
+        return out;
+    }
 }
