@@ -634,7 +634,7 @@ public class PhotoEditorFrame extends JFrame {
                 return;
             }
             BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
-            String time = ChallengeFilters.readClock(input);
+            String time = ClockChallenge.readClock(input);
             
             // Build history string to show to user
             StringBuilder historyStr = new StringBuilder();
@@ -661,7 +661,7 @@ public class PhotoEditorFrame extends JFrame {
                 return;
             }
             BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
-            ChallengeFilters.BarChartAnalysis analysis = ChallengeFilters.readBarChart(input);
+            BarChartChallenge.BarChartAnalysis analysis = BarChartChallenge.readBarChart(input);
 
             String message = String.format(
                 "Gráfico Processado:\n" +
