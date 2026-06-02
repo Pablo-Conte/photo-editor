@@ -71,7 +71,7 @@ public class PhotoEditorFrame extends JFrame {
     private JButton btnGrayscale, btnBrilho, btnContraste;
 
     // Botões — Desafios
-    private JButton btnReadClock;
+    private JButton btnReadClock, btnReadBarChart;
 
     // ── Sliders de cor ──────────────────────────────────────────────────────────
     private JSlider sliderBrilho, sliderContraste, sliderThreshold;
@@ -652,6 +652,33 @@ public class PhotoEditorFrame extends JFrame {
             updateStatus("Desafio 1: " + time);
         });
         addSideBtn(inner, btnReadClock);
+        inner.add(Box.createVerticalStrut(4));
+
+        btnReadBarChart = makeActionButton("📊  Ex. 5 - Ler Gráfico", new Color(70, 150, 180));
+        btnReadBarChart.addActionListener(e -> {
+            if (originalImage == null) {
+                JOptionPane.showMessageDialog(this, "Carregue a imagem do gráfico primeiro.", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
+            ChallengeFilters.BarChartAnalysis analysis = ChallengeFilters.readBarChart(input);
+
+            String message = String.format(
+                "Gráfico Processado:\n" +
+                "- Barras encontradas: %d\n" +
+                "- Alturas (px): %s\n" +
+                "- Maior barra: %d\n" +
+                "- Menor barra: %d",
+                analysis.getBarHeights().size(),
+                analysis.getBarHeights().toString(),
+                analysis.getMaxHeight(),
+                analysis.getMinHeight()
+            );
+
+            JOptionPane.showMessageDialog(this, message, "Resultado - Ler Gráfico", JOptionPane.INFORMATION_MESSAGE);
+            updateStatus("Desafio 2: " + analysis.getBarHeights().size() + " barras identificadas");
+        });
+        addSideBtn(inner, btnReadBarChart);
 
         inner.add(Box.createVerticalGlue());
 
