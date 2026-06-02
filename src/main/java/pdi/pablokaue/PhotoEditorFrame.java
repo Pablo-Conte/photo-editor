@@ -15,7 +15,7 @@ import javax.imageio.ImageIO;
 /**
  * @author 0414249
  */
-public class PhotoEditorFrame extends JFrame {
+public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
 
     private static final java.util.logging.Logger logger =
             java.util.logging.Logger.getLogger(PhotoEditorFrame.class.getName());
@@ -96,7 +96,7 @@ public class PhotoEditorFrame extends JFrame {
     private JSlider sliderCannyLow, sliderCannyHigh;
     private JLabel  valCannyLow,    valCannyHigh;
 
-    // ── Morfologia ──────────────────────────────────────────────────────────────
+    // ── Morfologia ───────────────────────────────────────────────────────
     private String selectedStructElement = null;
     private BufferedImage morphBaseImage = null;
     private JSlider sliderMorphIter;
@@ -633,21 +633,15 @@ public class PhotoEditorFrame extends JFrame {
                 JOptionPane.showMessageDialog(this, "Carregue a imagem do relógio primeiro.", "Aviso", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
-            String time = ChallengeFilters.readClock(input);
             
-            // Build history string to show to user
-            StringBuilder historyStr = new StringBuilder();
-            if (activeFilters.isEmpty()) {
-                historyStr.append("Nenhum filtro aplicado.");
-            } else {
-                for (int i = 0; i < activeFilters.size(); i++) {
-                    historyStr.append((i + 1)).append(". ").append(activeFilters.get(i).display).append("\n");
-                }
-            }
+            // Limpa o histórico antes de começar o desafio
+            activeFilters.clear();
+            updateHistoryUI();
             
-            String message = "Horário identificado: " + time + "\n\nFiltros usados:\n" + historyStr.toString();
-            
+            BufferedImage input = originalImage; // Começa sempre da original
+            String time = ChallengeFilters.readClock(input, this); // Passa o listener
+
+            String message = "Horário final identificado: " + time;
             JOptionPane.showMessageDialog(this, message, "Resultado - Ler Relógio", JOptionPane.INFORMATION_MESSAGE);
             updateStatus("Desafio 1: " + time);
         });
@@ -667,6 +661,24 @@ public class PhotoEditorFrame extends JFrame {
         wrapper.setBackground(BG_PANEL);
         wrapper.add(scroll);
         return wrapper;
+    }
+    
+    @Override
+    public void onStepCompleted(String stepName, BufferedImage resultImage) {
+        SwingUtilities.invokeLater(() -> {
+            // Cria uma configuração de filtro "falsa" apenas para exibição no histórico
+            FilterConfig stepConfig = new FilterConfig();
+            stepConfig.key = "CHALLENGE_STEP";
+            stepConfig.display = stepName;
+            activeFilters.add(stepConfig);
+
+            // Atualiza a imagem de resultado e o histórico
+            this.filteredImage = resultImage;
+            this.preSliderImage = resultImage; // Para que o próximo passo parta daqui
+            displayImage(resultImage, false);
+            updateHistoryUI();
+            updateStatus("Etapa: " + stepName);
+        });
     }
 
     // ── Helpers de sidebar ───────────────────────────────────────────────────────
