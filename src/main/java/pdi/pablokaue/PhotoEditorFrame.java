@@ -72,7 +72,7 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
     private JButton btnGrayscale, btnBrilho, btnContraste;
 
     // Botões — Desafios
-    private JButton btnReadClock, btnReadBarChart, btnCountColors;
+    private JButton btnReadClock, btnReadBarChart, btnCountColors, btnReadLetters;
 
     // ── Sliders de cor ──────────────────────────────────────────────────────────
     private JSlider sliderBrilho, sliderContraste, sliderThreshold;
@@ -691,6 +691,23 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
             updateStatus("Desafio 2: " + output);
         });
         addSideBtn(inner, btnCountColors);
+
+        inner.add(Box.createVerticalStrut(4));
+
+        btnReadLetters = makeActionButton("🔤  Ex. 3 - Reconhecer Letras", new Color(60, 160, 100));
+        btnReadLetters.addActionListener(e -> {
+            if (originalImage == null) {
+                JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.", "Aviso",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
+            LetterRecognitionChallenge.LetterResult result = LetterRecognitionChallenge.recognizeLetters(input);
+            String output = result.toFormattedString();
+            JOptionPane.showMessageDialog(this, output, "Resultado - Reconhecer Letras", JOptionPane.INFORMATION_MESSAGE);
+            updateStatus("Desafio 3: " + output);
+        });
+        addSideBtn(inner, btnReadLetters);
 
         inner.add(Box.createVerticalStrut(4));
 
