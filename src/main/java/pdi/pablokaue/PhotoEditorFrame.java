@@ -15,10 +15,10 @@ import javax.imageio.ImageIO;
 /**
  * @author 0414249
  */
-public class PhotoEditorFrame extends JFrame {
+public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
 
-    private static final java.util.logging.Logger logger =
-            java.util.logging.Logger.getLogger(PhotoEditorFrame.class.getName());
+    private static final java.util.logging.Logger logger = java.util.logging.Logger
+            .getLogger(PhotoEditorFrame.class.getName());
 
     // --- Estado ---
     private BufferedImage originalImage = null;
@@ -26,17 +26,18 @@ public class PhotoEditorFrame extends JFrame {
     // Salva a imagem antes do slider começar a modificar para não acumular
     private BufferedImage preSliderImage = null;
     private String activeFilter = null;
-    
+
     // Histórico de filtros via Configuração
     private class FilterConfig {
         String key;
         String display;
-        
+
         int vBrilho, vContraste, vThreshold, vRobertsThresh, vSobelThresh, vRobinsonThresh;
         double vFreiChenThresh, vMarrSigma, vCannyLow, vCannyHigh;
         String morphOp, selectedStructElement;
         int morphIter;
     }
+
     private java.util.List<FilterConfig> activeFilters = new ArrayList<>();
 
     // --- Componentes ---
@@ -75,52 +76,52 @@ public class PhotoEditorFrame extends JFrame {
 
     // ── Sliders de cor ──────────────────────────────────────────────────────────
     private JSlider sliderBrilho, sliderContraste, sliderThreshold;
-    private JLabel  valBrilho,    valContraste,    valThreshold;
+    private JLabel valBrilho, valContraste, valThreshold;
 
     // ── Sliders de bordas ───────────────────────────────────────────────────────
     private JSlider sliderRobertsThresh;
-    private JLabel  valRobertsThresh;
+    private JLabel valRobertsThresh;
 
     private JSlider sliderSobelThresh;
-    private JLabel  valSobelThresh;
+    private JLabel valSobelThresh;
 
     private JSlider sliderRobinsonThresh;
-    private JLabel  valRobinsonThresh;
+    private JLabel valRobinsonThresh;
 
     private JSlider sliderFreiChenThresh;
-    private JLabel  valFreiChenThresh;
+    private JLabel valFreiChenThresh;
 
     private JSlider sliderMarrSigma;
-    private JLabel  valMarrSigma;
+    private JLabel valMarrSigma;
 
     private JSlider sliderCannyLow, sliderCannyHigh;
-    private JLabel  valCannyLow,    valCannyHigh;
+    private JLabel valCannyLow, valCannyHigh;
 
-    // ── Morfologia ──────────────────────────────────────────────────────────────
+    // ── Morfologia ───────────────────────────────────────────────────────
     private String selectedStructElement = null;
     private BufferedImage morphBaseImage = null;
     private JSlider sliderMorphIter;
-    private JLabel  valMorphIter;
+    private JLabel valMorphIter;
     private JButton btnErosao, btnDilatacao, btnAbertura, btnFechamento;
     private JButton[] seButtons;
-    private boolean morphThreshEnabled = true;   // toggle: aplicar threshold ao selecionar SE
-    
+    private boolean morphThreshEnabled = true; // toggle: aplicar threshold ao selecionar SE
+
     // Botão reset global
     private JButton btnResetImage;
 
     // Cores do tema
-    private static final Color BG_DARK      = new Color(15, 15, 19);
-    private static final Color BG_PANEL     = new Color(22, 22, 28);
-    private static final Color BG_CARD      = new Color(30, 30, 38);
-    private static final Color BG_SECTION   = new Color(18, 18, 24);
-    private static final Color ACCENT       = new Color(255, 75, 75);
-    private static final Color ACCENT2      = new Color(75, 180, 255);
-    private static final Color BTN_NORMAL   = new Color(42, 42, 55);
-    private static final Color BTN_HOVER    = new Color(58, 58, 74);
-    private static final Color BTN_ACTIVE   = new Color(255, 75, 75);
+    private static final Color BG_DARK = new Color(15, 15, 19);
+    private static final Color BG_PANEL = new Color(22, 22, 28);
+    private static final Color BG_CARD = new Color(30, 30, 38);
+    private static final Color BG_SECTION = new Color(18, 18, 24);
+    private static final Color ACCENT = new Color(255, 75, 75);
+    private static final Color ACCENT2 = new Color(75, 180, 255);
+    private static final Color BTN_NORMAL = new Color(42, 42, 55);
+    private static final Color BTN_HOVER = new Color(58, 58, 74);
+    private static final Color BTN_ACTIVE = new Color(255, 75, 75);
     private static final Color TEXT_PRIMARY = new Color(235, 235, 245);
-    private static final Color TEXT_MUTED   = new Color(100, 100, 125);
-    private static final Color TEXT_LABEL   = new Color(160, 160, 185);
+    private static final Color TEXT_MUTED = new Color(100, 100, 125);
+    private static final Color TEXT_LABEL = new Color(160, 160, 185);
     private static final Color BORDER_COLOR = new Color(45, 45, 60);
 
     public PhotoEditorFrame() {
@@ -158,14 +159,14 @@ public class PhotoEditorFrame extends JFrame {
         JPanel center = new JPanel(new GridLayout(1, 2, 8, 0));
         center.setBackground(BG_DARK);
         center.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        inputPanel  = buildImagePanel("ORIGINAL", true);
+        inputPanel = buildImagePanel("ORIGINAL", true);
         outputPanel = buildImagePanel("RESULTADO", false);
         center.add(inputPanel);
         center.add(outputPanel);
         root.add(center, BorderLayout.CENTER);
 
         root.add(buildSidebar(), BorderLayout.WEST);
-        
+
         root.add(buildHistoryPanel(), BorderLayout.EAST);
 
         pack();
@@ -178,8 +179,7 @@ public class PhotoEditorFrame extends JFrame {
         header.setBackground(BG_PANEL);
         header.setBorder(new CompoundBorder(
                 new MatteBorder(0, 0, 1, 0, BORDER_COLOR),
-                BorderFactory.createEmptyBorder(12, 20, 12, 20)
-        ));
+                BorderFactory.createEmptyBorder(12, 20, 12, 20)));
 
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         left.setOpaque(false);
@@ -196,12 +196,14 @@ public class PhotoEditorFrame extends JFrame {
         version.setFont(new Font("Monospaced", Font.PLAIN, 11));
         version.setForeground(TEXT_MUTED);
 
-        left.add(dot); left.add(title); left.add(version);
+        left.add(dot);
+        left.add(title);
+        left.add(version);
         header.add(left, BorderLayout.WEST);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         right.setOpaque(false);
-        
+
         statusLabel = new JLabel("Nenhuma imagem carregada");
         statusLabel.setFont(new Font("Monospaced", Font.PLAIN, 11));
         statusLabel.setForeground(TEXT_MUTED);
@@ -226,7 +228,7 @@ public class PhotoEditorFrame extends JFrame {
 
         return header;
     }
-    
+
     // ── Painel de Histórico ──────────────────────────────────────────────────────
     private JPanel buildHistoryPanel() {
         historyPanel = new JPanel(new BorderLayout());
@@ -244,7 +246,7 @@ public class PhotoEditorFrame extends JFrame {
         historyContainerPanel = new JPanel();
         historyContainerPanel.setLayout(new BoxLayout(historyContainerPanel, BoxLayout.Y_AXIS));
         historyContainerPanel.setBackground(BG_DARK);
-        
+
         JScrollPane scroll = new JScrollPane(historyContainerPanel,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -261,16 +263,16 @@ public class PhotoEditorFrame extends JFrame {
             for (int i = 0; i < activeFilters.size(); i++) {
                 final int index = i;
                 FilterConfig cfg = activeFilters.get(i);
-                
+
                 JPanel row = new JPanel(new BorderLayout());
                 row.setBackground(BG_CARD);
                 row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
                 row.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
-                
+
                 JLabel lbl = new JLabel((i + 1) + ". " + cfg.display);
                 lbl.setFont(new Font("Monospaced", Font.PLAIN, 11));
                 lbl.setForeground(TEXT_PRIMARY);
-                
+
                 JButton btnDel = new JButton("✕");
                 btnDel.setFont(new Font("SansSerif", Font.BOLD, 12));
                 btnDel.setForeground(ACCENT);
@@ -280,10 +282,10 @@ public class PhotoEditorFrame extends JFrame {
                 btnDel.setMargin(new Insets(0, 0, 0, 0));
                 btnDel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                 btnDel.addActionListener(e -> removeFilterAt(index));
-                
+
                 row.add(lbl, BorderLayout.CENTER);
                 row.add(btnDel, BorderLayout.EAST);
-                
+
                 historyContainerPanel.add(row);
                 historyContainerPanel.add(Box.createVerticalStrut(2));
             }
@@ -300,8 +302,9 @@ public class PhotoEditorFrame extends JFrame {
     }
 
     private void recomputeFilters() {
-        if (originalImage == null) return;
-        
+        if (originalImage == null)
+            return;
+
         if (activeFilters.isEmpty()) {
             filteredImage = null;
             preSliderImage = null;
@@ -312,18 +315,21 @@ public class PhotoEditorFrame extends JFrame {
             updateHistoryUI();
             return;
         }
-        
+
         final java.util.List<FilterConfig> snapshot = new ArrayList<>(activeFilters);
-        
+
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
-            @Override protected BufferedImage doInBackground() {
+            @Override
+            protected BufferedImage doInBackground() {
                 BufferedImage current = originalImage;
                 for (FilterConfig cfg : snapshot) {
                     current = applyConfig(current, cfg);
                 }
                 return current;
             }
-            @Override protected void done() {
+
+            @Override
+            protected void done() {
                 try {
                     filteredImage = get();
                     preSliderImage = filteredImage;
@@ -356,7 +362,8 @@ public class PhotoEditorFrame extends JFrame {
         lbl.setFont(new Font("Monospaced", Font.BOLD, 10));
         lbl.setForeground(isInput ? ACCENT : ACCENT2);
 
-        ph.add(dot); ph.add(lbl);
+        ph.add(dot);
+        ph.add(lbl);
         card.add(ph, BorderLayout.NORTH);
 
         JPanel imageArea = new JPanel(new GridBagLayout());
@@ -372,16 +379,26 @@ public class PhotoEditorFrame extends JFrame {
                             "<div style='font-size:32px;margin-bottom:8px'>📂</div>" +
                             "<div style='color:#646478;font-size:10px;font-family:monospace;line-height:1.8'>" +
                             "CLIQUE PARA CARREGAR<br/>JPG &nbsp;·&nbsp; PNG &nbsp;·&nbsp; BMP" +
-                            "</div></center></html>"
-            );
+                            "</div></center></html>");
             inputPlaceholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
             imageArea.add(inputPlaceholderLabel);
 
             imageArea.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             imageArea.addMouseListener(new MouseAdapter() {
-                @Override public void mouseClicked(MouseEvent e) { loadImage(); }
-                @Override public void mouseEntered(MouseEvent e) { imageArea.setBackground(new Color(36, 36, 46)); }
-                @Override public void mouseExited (MouseEvent e) { imageArea.setBackground(BG_CARD); }
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    loadImage();
+                }
+
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    imageArea.setBackground(new Color(36, 36, 46));
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    imageArea.setBackground(BG_CARD);
+                }
             });
         } else {
             outputImageLabel = new JLabel();
@@ -393,8 +410,7 @@ public class PhotoEditorFrame extends JFrame {
                             "<div style='font-size:32px;margin-bottom:8px'>🖼️</div>" +
                             "<div style='color:#646478;font-size:10px;font-family:monospace;line-height:1.8'>" +
                             "RESULTADO AQUI<br/>SELECIONE UMA TRANSFORMAÇÃO" +
-                            "</div></center></html>"
-            );
+                            "</div></center></html>");
             outputPlaceholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
             imageArea.add(outputPlaceholderLabel);
         }
@@ -423,7 +439,7 @@ public class PhotoEditorFrame extends JFrame {
         btnSaveImage.addActionListener(e -> saveImage());
         addSideBtn(inner, btnSaveImage);
         inner.add(Box.createVerticalStrut(4));
-        
+
         btnResetImage = makeActionButton("↺  Resetar Imagem (R)", new Color(70, 70, 100));
         btnResetImage.addActionListener(e -> resetImage());
         addSideBtn(inner, btnResetImage);
@@ -433,15 +449,15 @@ public class PhotoEditorFrame extends JFrame {
         addSection(inner, "GEOMÉTRICO");
         inner.add(Box.createVerticalStrut(4));
 
-        btnTranslate  = makeFilterButton("↗  Transladar",     "TRANSLADAR");
-        btnAmpliar    = makeFilterButton("⊕  Ampliar 1.5×",   "AMPLIAR");
-        btnReduzir    = makeFilterButton("⊖  Reduzir 0.5×",   "REDUZIR");
+        btnTranslate = makeFilterButton("↗  Transladar", "TRANSLADAR");
+        btnAmpliar = makeFilterButton("⊕  Ampliar 1.5×", "AMPLIAR");
+        btnReduzir = makeFilterButton("⊖  Reduzir 0.5×", "REDUZIR");
         btnRotacionar = makeFilterButton("↻  Rotacionar 45°", "ROTACIONAR");
-        btnEspelharH  = makeFilterButton("↔  Espelhar H",     "ESPELHAR_H");
-        btnEspelharV  = makeFilterButton("↕  Espelhar V",     "ESPELHAR_V");
+        btnEspelharH = makeFilterButton("↔  Espelhar H", "ESPELHAR_H");
+        btnEspelharV = makeFilterButton("↕  Espelhar V", "ESPELHAR_V");
 
-        for (JButton b : new JButton[]{btnTranslate, btnAmpliar, btnReduzir,
-                btnRotacionar, btnEspelharH, btnEspelharV}) {
+        for (JButton b : new JButton[] { btnTranslate, btnAmpliar, btnReduzir,
+                btnRotacionar, btnEspelharH, btnEspelharV }) {
             addSideBtn(inner, b);
             inner.add(Box.createVerticalStrut(3));
         }
@@ -452,11 +468,11 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(4));
 
         btnConvolucao = makeFilterButton("⊞  Convolução", "CONVOLUCAO");
-        btnMediana    = makeFilterButton("◎  Mediana",    "MEDIANA");
-        btnModa       = makeFilterButton("◈  Moda",       "MODA");
-        btnGauss      = makeFilterButton("≋  Gaussiano",  "GAUSS");
+        btnMediana = makeFilterButton("◎  Mediana", "MEDIANA");
+        btnModa = makeFilterButton("◈  Moda", "MODA");
+        btnGauss = makeFilterButton("≋  Gaussiano", "GAUSS");
 
-        for (JButton b : new JButton[]{btnConvolucao, btnMediana, btnModa, btnGauss}) {
+        for (JButton b : new JButton[] { btnConvolucao, btnMediana, btnModa, btnGauss }) {
             addSideBtn(inner, b);
             inner.add(Box.createVerticalStrut(3));
         }
@@ -467,76 +483,85 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(6));
 
         sliderRobertsThresh = makeSlider(0, 255, 30);
-        valRobertsThresh    = makeValLabel("30");
+        valRobertsThresh = makeValLabel("30");
         sliderRobertsThresh.addChangeListener(e -> {
             valRobertsThresh.setText(String.valueOf(sliderRobertsThresh.getValue()));
-            if ("ROBERTS".equals(activeFilter)) applyFilterAsync("ROBERTS", true);
+            if ("ROBERTS".equals(activeFilter))
+                applyFilterAsync("ROBERTS", true);
         });
         btnRoberts = makeFilterButton("⟁  Roberts Cross", "ROBERTS");
         addSliderBlockLabeled(inner, "limiar", sliderRobertsThresh, valRobertsThresh, btnRoberts);
         inner.add(Box.createVerticalStrut(10));
 
         sliderSobelThresh = makeSlider(0, 255, 60);
-        valSobelThresh    = makeValLabel("60");
+        valSobelThresh = makeValLabel("60");
         sliderSobelThresh.addChangeListener(e -> {
             valSobelThresh.setText(String.valueOf(sliderSobelThresh.getValue()));
-            if ("SOBEL".equals(activeFilter)) applyFilterAsync("SOBEL", true);
+            if ("SOBEL".equals(activeFilter))
+                applyFilterAsync("SOBEL", true);
         });
         btnSobel = makeFilterButton("⊟  Sobel", "SOBEL");
         addSliderBlockLabeled(inner, "limiar", sliderSobelThresh, valSobelThresh, btnSobel);
         inner.add(Box.createVerticalStrut(10));
 
         sliderRobinsonThresh = makeSlider(0, 255, 30);
-        valRobinsonThresh    = makeValLabel("30");
+        valRobinsonThresh = makeValLabel("30");
         sliderRobinsonThresh.addChangeListener(e -> {
             valRobinsonThresh.setText(String.valueOf(sliderRobinsonThresh.getValue()));
-            if ("ROBINSON".equals(activeFilter)) applyFilterAsync("ROBINSON", true);
+            if ("ROBINSON".equals(activeFilter))
+                applyFilterAsync("ROBINSON", true);
         });
         btnRobinson = makeFilterButton("✦  Robinson Compass", "ROBINSON");
         addSliderBlockLabeled(inner, "limiar", sliderRobinsonThresh, valRobinsonThresh, btnRobinson);
         inner.add(Box.createVerticalStrut(10));
 
         sliderFreiChenThresh = makeSlider(0, 100, 30);
-        valFreiChenThresh    = makeValLabel("30%");
+        valFreiChenThresh = makeValLabel("30%");
         sliderFreiChenThresh.addChangeListener(e -> {
             valFreiChenThresh.setText(sliderFreiChenThresh.getValue() + "%");
-            if ("FREI_CHEN".equals(activeFilter)) applyFilterAsync("FREI_CHEN", true);
+            if ("FREI_CHEN".equals(activeFilter))
+                applyFilterAsync("FREI_CHEN", true);
         });
         btnFreiChen = makeFilterButton("⋈  Frei-Chen", "FREI_CHEN");
         addSliderBlockLabeled(inner, "limiar%", sliderFreiChenThresh, valFreiChenThresh, btnFreiChen);
         inner.add(Box.createVerticalStrut(10));
 
         sliderMarrSigma = makeSlider(5, 30, 14);
-        valMarrSigma    = makeValLabel("1.4");
+        valMarrSigma = makeValLabel("1.4");
         sliderMarrSigma.addChangeListener(e -> {
             valMarrSigma.setText(String.format("%.1f", sliderMarrSigma.getValue() / 10.0));
-            if ("MARR_HILDRETH".equals(activeFilter)) applyFilterAsync("MARR_HILDRETH", true);
+            if ("MARR_HILDRETH".equals(activeFilter))
+                applyFilterAsync("MARR_HILDRETH", true);
         });
         btnMarrHildreth = makeFilterButton("◉  Marr-Hildreth", "MARR_HILDRETH");
         addSliderBlockLabeled(inner, "sigma", sliderMarrSigma, valMarrSigma, btnMarrHildreth);
         inner.add(Box.createVerticalStrut(10));
 
-        sliderCannyLow  = makeSlider(0, 254, 50);
-        valCannyLow     = makeValLabel("50");
+        sliderCannyLow = makeSlider(0, 254, 50);
+        valCannyLow = makeValLabel("50");
         sliderCannyHigh = makeSlider(1, 255, 150);
-        valCannyHigh    = makeValLabel("150");
+        valCannyHigh = makeValLabel("150");
 
         sliderCannyLow.addChangeListener(e -> {
             int lo = sliderCannyLow.getValue();
-            if (lo >= sliderCannyHigh.getValue()) sliderCannyHigh.setValue(lo + 1);
+            if (lo >= sliderCannyHigh.getValue())
+                sliderCannyHigh.setValue(lo + 1);
             valCannyLow.setText(String.valueOf(lo));
-            if ("CANNY".equals(activeFilter)) applyFilterAsync("CANNY", true);
+            if ("CANNY".equals(activeFilter))
+                applyFilterAsync("CANNY", true);
         });
         sliderCannyHigh.addChangeListener(e -> {
             int hi = sliderCannyHigh.getValue();
-            if (hi <= sliderCannyLow.getValue()) sliderCannyLow.setValue(hi - 1);
+            if (hi <= sliderCannyLow.getValue())
+                sliderCannyLow.setValue(hi - 1);
             valCannyHigh.setText(String.valueOf(hi));
-            if ("CANNY".equals(activeFilter)) applyFilterAsync("CANNY", true);
+            if ("CANNY".equals(activeFilter))
+                applyFilterAsync("CANNY", true);
         });
         btnCanny = makeFilterButton("◆  Canny", "CANNY");
 
         addSubLabel(inner, "low thresh");
-        addSliderRow(inner, sliderCannyLow,  valCannyLow);
+        addSliderRow(inner, sliderCannyLow, valCannyLow);
         inner.add(Box.createVerticalStrut(2));
         addSubLabel(inner, "high thresh");
         addSliderRow(inner, sliderCannyHigh, valCannyHigh);
@@ -549,10 +574,10 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(4));
 
         btnStentiford = makeFilterButton("✂  Stentiford", "STENTIFORD");
-        btnZhangSuen  = makeFilterButton("✂  Zhang-Suen", "ZHANG_SUEN");
-        btnHolt       = makeFilterButton("✂  Holt", "HOLT");
+        btnZhangSuen = makeFilterButton("✂  Zhang-Suen", "ZHANG_SUEN");
+        btnHolt = makeFilterButton("✂  Holt", "HOLT");
 
-        for (JButton b : new JButton[]{btnStentiford, btnZhangSuen, btnHolt}) {
+        for (JButton b : new JButton[] { btnStentiford, btnZhangSuen, btnHolt }) {
             addSideBtn(inner, b);
             inner.add(Box.createVerticalStrut(3));
         }
@@ -570,10 +595,11 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(4));
 
         sliderBrilho = makeSlider(-100, 100, 0);
-        valBrilho    = makeValLabel("0");
+        valBrilho = makeValLabel("0");
         sliderBrilho.addChangeListener(e -> {
             valBrilho.setText(String.valueOf(sliderBrilho.getValue()));
-            if ("BRILHO".equals(activeFilter)) applyFilterAsync("BRILHO", true);
+            if ("BRILHO".equals(activeFilter))
+                applyFilterAsync("BRILHO", true);
         });
         btnBrilho = makeFilterButton("☀  Aplicar Brilho", "BRILHO");
         addSliderBlock(inner, sliderBrilho, valBrilho, btnBrilho);
@@ -584,10 +610,11 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(4));
 
         sliderContraste = makeSlider(-100, 100, 0);
-        valContraste    = makeValLabel("0");
+        valContraste = makeValLabel("0");
         sliderContraste.addChangeListener(e -> {
             valContraste.setText(String.valueOf(sliderContraste.getValue()));
-            if ("CONTRASTE".equals(activeFilter)) applyFilterAsync("CONTRASTE", true);
+            if ("CONTRASTE".equals(activeFilter))
+                applyFilterAsync("CONTRASTE", true);
         });
         btnContraste = makeFilterButton("◑  Aplicar Contraste", "CONTRASTE");
         addSliderBlock(inner, sliderContraste, valContraste, btnContraste);
@@ -598,7 +625,7 @@ public class PhotoEditorFrame extends JFrame {
         inner.add(Box.createVerticalStrut(4));
 
         sliderThreshold = makeSlider(0, 255, 128);
-        valThreshold    = makeValLabel("128");
+        valThreshold = makeValLabel("128");
         sliderThreshold.addChangeListener(e -> {
             valThreshold.setText(String.valueOf(sliderThreshold.getValue()));
             if (originalImage != null) {
@@ -622,34 +649,29 @@ public class PhotoEditorFrame extends JFrame {
         // ── MORFOLOGIA ───────────────────────────────────────────────────────
         buildMorphologySection(inner);
         inner.add(Box.createVerticalStrut(13));
-        
+
         // ── DESAFIOS ─────────────────────────────────────────────────────────
         addSection(inner, "DESAFIOS");
         inner.add(Box.createVerticalStrut(4));
-        
+
         btnReadClock = makeActionButton("⌚  Ex. 1 - Ler Relógio", new Color(150, 70, 180));
         btnReadClock.addActionListener(e -> {
             if (originalImage == null) {
-                JOptionPane.showMessageDialog(this, "Carregue a imagem do relógio primeiro.", "Aviso", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Carregue a imagem do relógio primeiro.", "Aviso",
+                        JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
-            String time = ClockChallenge.readClock(input);
-            
-            // Build history string to show to user
-            StringBuilder historyStr = new StringBuilder();
-            if (activeFilters.isEmpty()) {
-                historyStr.append("Nenhum filtro aplicado.");
-            } else {
-                for (int i = 0; i < activeFilters.size(); i++) {
-                    historyStr.append((i + 1)).append(". ").append(activeFilters.get(i).display).append("\n");
-                }
-            }
-            
-            String message = "Horário identificado: " + time + "\n\nFiltros usados:\n" + historyStr.toString();
-            
+
+            // Limpa o histórico antes de começar o desafio
+            activeFilters.clear();
+            updateHistoryUI();
+
+            BufferedImage input = originalImage; // Começa sempre da original
+            ClockChallenge.ClockResult result = ClockChallenge.readClock(input, this);
+
+            String message = "Horário: " + result.time + "\n\n" + result.debug;
             JOptionPane.showMessageDialog(this, message, "Resultado - Ler Relógio", JOptionPane.INFORMATION_MESSAGE);
-            updateStatus("Desafio 1: " + time);
+            updateStatus("Desafio 1: " + result.time);
         });
         addSideBtn(inner, btnReadClock);
         inner.add(Box.createVerticalStrut(4));
@@ -657,23 +679,23 @@ public class PhotoEditorFrame extends JFrame {
         btnReadBarChart = makeActionButton("📊  Ex. 5 - Ler Gráfico", new Color(70, 150, 180));
         btnReadBarChart.addActionListener(e -> {
             if (originalImage == null) {
-                JOptionPane.showMessageDialog(this, "Carregue a imagem do gráfico primeiro.", "Aviso", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Carregue a imagem do gráfico primeiro.", "Aviso",
+                        JOptionPane.WARNING_MESSAGE);
                 return;
             }
             BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
             BarChartChallenge.BarChartAnalysis analysis = BarChartChallenge.readBarChart(input);
 
             String message = String.format(
-                "Gráfico Processado:\n" +
-                "- Barras encontradas: %d\n" +
-                "- Alturas (px): %s\n" +
-                "- Maior barra: %d\n" +
-                "- Menor barra: %d",
-                analysis.getBarHeights().size(),
-                analysis.getBarHeights().toString(),
-                analysis.getMaxHeight(),
-                analysis.getMinHeight()
-            );
+                    "Gráfico Processado:\n" +
+                            "- Barras encontradas: %d\n" +
+                            "- Alturas (px): %s\n" +
+                            "- Maior barra: %d\n" +
+                            "- Menor barra: %d",
+                    analysis.getBarHeights().size(),
+                    analysis.getBarHeights().toString(),
+                    analysis.getMaxHeight(),
+                    analysis.getMinHeight());
 
             JOptionPane.showMessageDialog(this, message, "Resultado - Ler Gráfico", JOptionPane.INFORMATION_MESSAGE);
             updateStatus("Desafio 2: " + analysis.getBarHeights().size() + " barras identificadas");
@@ -694,6 +716,24 @@ public class PhotoEditorFrame extends JFrame {
         wrapper.setBackground(BG_PANEL);
         wrapper.add(scroll);
         return wrapper;
+    }
+
+    @Override
+    public void onStepCompleted(String stepName, BufferedImage resultImage) {
+        SwingUtilities.invokeLater(() -> {
+            // Cria uma configuração de filtro "falsa" apenas para exibição no histórico
+            FilterConfig stepConfig = new FilterConfig();
+            stepConfig.key = "CHALLENGE_STEP";
+            stepConfig.display = stepName;
+            activeFilters.add(stepConfig);
+
+            // Atualiza a imagem de resultado e o histórico
+            this.filteredImage = resultImage;
+            this.preSliderImage = resultImage; // Para que o próximo passo parta daqui
+            displayImage(resultImage, false);
+            updateHistoryUI();
+            updateStatus("Etapa: " + stepName);
+        });
     }
 
     // ── Helpers de sidebar ───────────────────────────────────────────────────────
@@ -729,12 +769,12 @@ public class PhotoEditorFrame extends JFrame {
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         slider.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
         row.add(slider, BorderLayout.CENTER);
-        row.add(val,    BorderLayout.EAST);
+        row.add(val, BorderLayout.EAST);
         parent.add(row);
     }
 
     private void addSliderBlockLabeled(JPanel parent, String label,
-                                       JSlider slider, JLabel val, JButton btn) {
+            JSlider slider, JLabel val, JButton btn) {
         addSubLabel(parent, label);
         addSliderRow(parent, slider, val);
         parent.add(Box.createVerticalStrut(3));
@@ -770,10 +810,12 @@ public class PhotoEditorFrame extends JFrame {
         return s;
     }
 
-    // ── Fábrica de botões ─────────────────────────────────────────────────────────
+    // ── Fábrica de botões
+    // ─────────────────────────────────────────────────────────
     private JButton makeFilterButton(String text, String filterKey) {
         JButton btn = new JButton(text) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 boolean active = filterKey.equals(activeFilter);
@@ -782,7 +824,7 @@ public class PhotoEditorFrame extends JFrame {
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
                 if (active) {
                     g2.setColor(new Color(255, 160, 160));
-                    g2.fillRoundRect(0, 4, 3, getHeight()-8, 2, 2);
+                    g2.fillRoundRect(0, 4, 3, getHeight() - 8, 2, 2);
                 }
                 g2.dispose();
                 super.paintComponent(g);
@@ -800,15 +842,23 @@ public class PhotoEditorFrame extends JFrame {
         btn.setPreferredSize(new Dimension(200, 32));
         btn.addActionListener(e -> applyFilter(filterKey));
         btn.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
-            @Override public void mouseExited (MouseEvent e) { btn.repaint(); }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.repaint();
+            }
         });
         return btn;
     }
 
     private JButton makeActionButton(String text, Color color) {
         JButton btn = new JButton(text) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 Color bg = getModel().isRollover() ? color.brighter() : color.darker();
@@ -829,8 +879,15 @@ public class PhotoEditorFrame extends JFrame {
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.setPreferredSize(new Dimension(200, 32));
         btn.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
-            @Override public void mouseExited (MouseEvent e) { btn.repaint(); }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.repaint();
+            }
         });
         return btn;
     }
@@ -846,10 +903,12 @@ public class PhotoEditorFrame extends JFrame {
                 originalImage = ImageIO.read(file);
                 filteredImage = null;
                 preSliderImage = null;
-                activeFilter  = null;
+                activeFilter = null;
                 morphBaseImage = null;
                 selectedStructElement = null;
-                if (seButtons != null) for (JButton b : seButtons) b.repaint();
+                if (seButtons != null)
+                    for (JButton b : seButtons)
+                        b.repaint();
                 displayImage(originalImage, true);
                 clearOutput();
                 activeFilters.clear();
@@ -889,7 +948,7 @@ public class PhotoEditorFrame extends JFrame {
             }
         }
     }
-    
+
     // ── Resetar Imagem ───────────────────────────────────────────────────────────
     private void resetImage() {
         if (originalImage == null) {
@@ -902,8 +961,10 @@ public class PhotoEditorFrame extends JFrame {
         activeFilter = null;
         morphBaseImage = null;
         selectedStructElement = null;
-        if (seButtons != null) for (JButton b : seButtons) b.repaint();
-        
+        if (seButtons != null)
+            for (JButton b : seButtons)
+                b.repaint();
+
         // Reset dos sliders de cor
         sliderBrilho.setValue(0);
         sliderContraste.setValue(0);
@@ -915,7 +976,7 @@ public class PhotoEditorFrame extends JFrame {
         updateStatus("Imagem resetada.");
         repaintButtons();
     }
-    
+
     // ── Histórico Lógica ─────────────────────────────────────────────────────────
 
     private FilterConfig createCurrentConfig(String key, String display) {
@@ -937,86 +998,96 @@ public class PhotoEditorFrame extends JFrame {
         c.morphIter = sliderMorphIter.getValue();
         return c;
     }
-    
+
     private String getFilterDisplayName(String filterKey) {
         return switch (filterKey) {
-            case "GRAYSCALE"     -> "Grayscale";
-            case "ROBERTS"       -> "ROBERTS (" + sliderRobertsThresh.getValue() + ")";
-            case "SOBEL"         -> "SOBEL (" + sliderSobelThresh.getValue() + ")";
-            case "ROBINSON"      -> "ROBINSON (" + sliderRobinsonThresh.getValue() + ")";
-            case "FREI_CHEN"     -> String.format("FREI_CHEN (%.0f%%)", sliderFreiChenThresh.getValue() / 100.0 * 100);
+            case "GRAYSCALE" -> "Grayscale";
+            case "ROBERTS" -> "ROBERTS (" + sliderRobertsThresh.getValue() + ")";
+            case "SOBEL" -> "SOBEL (" + sliderSobelThresh.getValue() + ")";
+            case "ROBINSON" -> "ROBINSON (" + sliderRobinsonThresh.getValue() + ")";
+            case "FREI_CHEN" -> String.format("FREI_CHEN (%.0f%%)", sliderFreiChenThresh.getValue() / 100.0 * 100);
             case "MARR_HILDRETH" -> String.format("MARR_HILDRETH (%.1f)", sliderMarrSigma.getValue() / 10.0);
-            case "CANNY"         -> String.format("CANNY (%.0f/%.0f)", (double)sliderCannyLow.getValue(), (double)sliderCannyHigh.getValue());
-            case "BRILHO"        -> "BRILHO (" + sliderBrilho.getValue() + ")";
-            case "CONTRASTE"     -> "CONTRASTE (" + sliderContraste.getValue() + ")";
-            case "THRESHOLD"     -> "THRESHOLD (" + sliderThreshold.getValue() + ")";
-            case "EROSAO", "DILATACAO", "ABERTURA", "FECHAMENTO" -> "Morfologia: " + filterKey + " (iters: " + sliderMorphIter.getValue() + ")";
-            default              -> filterKey;
+            case "CANNY" -> String.format("CANNY (%.0f/%.0f)", (double) sliderCannyLow.getValue(),
+                    (double) sliderCannyHigh.getValue());
+            case "BRILHO" -> "BRILHO (" + sliderBrilho.getValue() + ")";
+            case "CONTRASTE" -> "CONTRASTE (" + sliderContraste.getValue() + ")";
+            case "THRESHOLD" -> "THRESHOLD (" + sliderThreshold.getValue() + ")";
+            case "EROSAO", "DILATACAO", "ABERTURA", "FECHAMENTO" ->
+                "Morfologia: " + filterKey + " (iters: " + sliderMorphIter.getValue() + ")";
+            default -> filterKey;
         };
     }
 
     private BufferedImage applyConfig(BufferedImage input, FilterConfig cfg) {
         return switch (cfg.key) {
-            case "TRANSLADAR"    -> GeometricFilters.transladar(input, 15, 10);
-            case "AMPLIAR"       -> GeometricFilters.escalar(input, 1.5, 1.5);
-            case "REDUZIR"       -> GeometricFilters.escalar(input, 0.5, 0.5);
-            case "ROTACIONAR"    -> GeometricFilters.rotacionar(input, 45);
-            case "ESPELHAR_H"    -> GeometricFilters.espelharHorizontal(input);
-            case "ESPELHAR_V"    -> GeometricFilters.espelharVertical(input);
-            case "CONVOLUCAO"    -> LowPassFilters.convolucao(input, new float[][]{
-                    {1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f},{1/9f,1/9f,1/9f}
+            case "TRANSLADAR" -> GeometricFilters.transladar(input, 15, 10);
+            case "AMPLIAR" -> GeometricFilters.escalar(input, 1.5, 1.5);
+            case "REDUZIR" -> GeometricFilters.escalar(input, 0.5, 0.5);
+            case "ROTACIONAR" -> GeometricFilters.rotacionar(input, 45);
+            case "ESPELHAR_H" -> GeometricFilters.espelharHorizontal(input);
+            case "ESPELHAR_V" -> GeometricFilters.espelharVertical(input);
+            case "CONVOLUCAO" -> LowPassFilters.convolucao(input, new float[][] {
+                    { 1 / 9f, 1 / 9f, 1 / 9f }, { 1 / 9f, 1 / 9f, 1 / 9f }, { 1 / 9f, 1 / 9f, 1 / 9f }
             });
-            case "MEDIANA"       -> LowPassFilters.mediana(input, 3);
-            case "MODA"          -> LowPassFilters.moda(input, 3);
-            case "GAUSS"         -> LowPassFilters.gaussiano(input, 3, 1.0);
-            case "ROBERTS"       -> EdgeDetectionFilters.robertsCross(input, cfg.vRobertsThresh);
-            case "SOBEL"         -> EdgeDetectionFilters.sobel(input, cfg.vSobelThresh);
-            case "ROBINSON"      -> EdgeDetectionFilters.robinsonCompass(input, cfg.vRobinsonThresh);
-            case "FREI_CHEN"     -> EdgeDetectionFilters.freiChen(input, cfg.vFreiChenThresh);
+            case "MEDIANA" -> LowPassFilters.mediana(input, 3);
+            case "MODA" -> LowPassFilters.moda(input, 3);
+            case "GAUSS" -> LowPassFilters.gaussiano(input, 3, 1.0);
+            case "ROBERTS" -> EdgeDetectionFilters.robertsCross(input, cfg.vRobertsThresh);
+            case "SOBEL" -> EdgeDetectionFilters.sobel(input, cfg.vSobelThresh);
+            case "ROBINSON" -> EdgeDetectionFilters.robinsonCompass(input, cfg.vRobinsonThresh);
+            case "FREI_CHEN" -> EdgeDetectionFilters.freiChen(input, cfg.vFreiChenThresh);
             case "MARR_HILDRETH" -> EdgeDetectionFilters.marrHildreth(input, 5, cfg.vMarrSigma);
-            case "CANNY"         -> EdgeDetectionFilters.canny(input, cfg.vCannyLow, cfg.vCannyHigh);
-            case "STENTIFORD"    -> ThinningFilters.stentiford(input);
-            case "ZHANG_SUEN"    -> ThinningFilters.zhangSuen(input);
-            case "HOLT"          -> ThinningFilters.holt(input);
-            case "GRAYSCALE"     -> ColorFilters.grayscale(input);
-            case "BRILHO"        -> ColorFilters.brilho(input, cfg.vBrilho);
-            case "CONTRASTE"     -> ColorFilters.contraste(input, cfg.vContraste);
-            case "THRESHOLD"     -> ColorFilters.threshold(input, cfg.vThreshold);
-            case "EROSAO"        -> MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
-            case "DILATACAO"     -> MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
-            case "ABERTURA"      -> {
-                BufferedImage e = MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
-                yield MorphologyFilters.aplicarNVezes(e, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
+            case "CANNY" -> EdgeDetectionFilters.canny(input, cfg.vCannyLow, cfg.vCannyHigh);
+            case "STENTIFORD" -> ThinningFilters.stentiford(input);
+            case "ZHANG_SUEN" -> ThinningFilters.zhangSuen(input);
+            case "HOLT" -> ThinningFilters.holt(input);
+            case "GRAYSCALE" -> ColorFilters.grayscale(input);
+            case "BRILHO" -> ColorFilters.brilho(input, cfg.vBrilho);
+            case "CONTRASTE" -> ColorFilters.contraste(input, cfg.vContraste);
+            case "THRESHOLD" -> ColorFilters.threshold(input, cfg.vThreshold);
+            case "EROSAO" -> MorphologyFilters.aplicarNVezes(input,
+                    MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
+            case "DILATACAO" -> MorphologyFilters.aplicarNVezes(input,
+                    MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
+            case "ABERTURA" -> {
+                BufferedImage e = MorphologyFilters.aplicarNVezes(input,
+                        MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
+                yield MorphologyFilters.aplicarNVezes(e,
+                        MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
             }
-            case "FECHAMENTO"    -> {
-                BufferedImage d = MorphologyFilters.aplicarNVezes(input, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
-                yield MorphologyFilters.aplicarNVezes(d, MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
+            case "FECHAMENTO" -> {
+                BufferedImage d = MorphologyFilters.aplicarNVezes(input,
+                        MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, false);
+                yield MorphologyFilters.aplicarNVezes(d,
+                        MorphologyFilters.getStructuringElement(cfg.selectedStructElement), cfg.morphIter, true);
             }
-            default              -> input;
+            default -> input;
         };
     }
 
-    // ── Aplicar filtro ────────────────────────────────────────────────────────────
+    // ── Aplicar filtro
+    // ────────────────────────────────────────────────────────────
     private void applyFilter(String filterKey) {
         if (originalImage == null) {
             JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
                     "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        
+
         preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
         activeFilter = filterKey;
         repaintButtons();
-        
+
         applyFilterAsync(filterKey, false);
     }
 
     // ── Executa o filtro em background ───────────────────────────────────────────
     private void applyFilterAsync(String filterKey, boolean fromSlider) {
-        if (originalImage == null) return;
-        
+        if (originalImage == null)
+            return;
+
         String displayStr = getFilterDisplayName(filterKey);
-        
+
         if (fromSlider && !activeFilters.isEmpty()) {
             FilterConfig last = activeFilters.get(activeFilters.size() - 1);
             if (last.key.equals(filterKey)) {
@@ -1027,9 +1098,9 @@ public class PhotoEditorFrame extends JFrame {
         } else {
             activeFilters.add(createCurrentConfig(filterKey, displayStr));
         }
-        
+
         updateHistoryUI();
-        
+
         final BufferedImage input;
         if (fromSlider) {
             input = (preSliderImage != null) ? preSliderImage : originalImage;
@@ -1040,10 +1111,13 @@ public class PhotoEditorFrame extends JFrame {
         final FilterConfig cfg = activeFilters.get(activeFilters.size() - 1);
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
-            @Override protected BufferedImage doInBackground() {
+            @Override
+            protected BufferedImage doInBackground() {
                 return applyConfig(input, cfg);
             }
-            @Override protected void done() {
+
+            @Override
+            protected void done() {
                 try {
                     filteredImage = get();
                     displayImage(filteredImage, false);
@@ -1068,8 +1142,8 @@ public class PhotoEditorFrame extends JFrame {
         addSubLabel(inner, "elemento estruturante");
         inner.add(Box.createVerticalStrut(3));
 
-        String[] seNames = {"Disco", "Cruz", "Quadrado", "Hexágono", "Linha", "Par Pts"};
-        String[] seKeys  = {"DISCO", "CRUZ", "QUADRADO", "HEXAGONO", "LINHA", "PONTOS"};
+        String[] seNames = { "Disco", "Cruz", "Quadrado", "Hexágono", "Linha", "Par Pts" };
+        String[] seKeys = { "DISCO", "CRUZ", "QUADRADO", "HEXAGONO", "LINHA", "PONTOS" };
 
         JPanel seGrid = new JPanel(new java.awt.GridLayout(2, 3, 4, 4));
         seGrid.setOpaque(false);
@@ -1097,7 +1171,8 @@ public class PhotoEditorFrame extends JFrame {
         toggleLbl.setForeground(TEXT_MUTED);
 
         JToggleButton toggleThresh = new JToggleButton("ON") {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
@@ -1122,11 +1197,18 @@ public class PhotoEditorFrame extends JFrame {
             toggleThresh.repaint();
         });
         toggleThresh.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { toggleThresh.repaint(); }
-            @Override public void mouseExited (MouseEvent e) { toggleThresh.repaint(); }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                toggleThresh.repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                toggleThresh.repaint();
+            }
         });
 
-        toggleRow.add(toggleLbl,    BorderLayout.CENTER);
+        toggleRow.add(toggleLbl, BorderLayout.CENTER);
         toggleRow.add(toggleThresh, BorderLayout.EAST);
         inner.add(toggleRow);
         inner.add(Box.createVerticalStrut(6));
@@ -1134,19 +1216,18 @@ public class PhotoEditorFrame extends JFrame {
         // ── Slider de iterações ──────────────────────────────────────────
         addSubLabel(inner, "iterações  (1 = sem repetição)");
         sliderMorphIter = makeSlider(1, 10, 1);
-        valMorphIter    = makeValLabel("1");
-        sliderMorphIter.addChangeListener(e ->
-                valMorphIter.setText(String.valueOf(sliderMorphIter.getValue())));
+        valMorphIter = makeValLabel("1");
+        sliderMorphIter.addChangeListener(e -> valMorphIter.setText(String.valueOf(sliderMorphIter.getValue())));
         addSliderRow(inner, sliderMorphIter, valMorphIter);
         inner.add(Box.createVerticalStrut(6));
 
         // ── Operações morfológicas ───────────────────────────────────────
-        btnErosao     = makeMorphButton("⊖  Erosão",     "EROSAO");
-        btnDilatacao  = makeMorphButton("⊕  Dilatação",  "DILATACAO");
-        btnAbertura   = makeMorphButton("◁  Abertura",   "ABERTURA");
+        btnErosao = makeMorphButton("⊖  Erosão", "EROSAO");
+        btnDilatacao = makeMorphButton("⊕  Dilatação", "DILATACAO");
+        btnAbertura = makeMorphButton("◁  Abertura", "ABERTURA");
         btnFechamento = makeMorphButton("▷  Fechamento", "FECHAMENTO");
 
-        for (JButton b : new JButton[]{btnErosao, btnDilatacao, btnAbertura, btnFechamento}) {
+        for (JButton b : new JButton[] { btnErosao, btnDilatacao, btnAbertura, btnFechamento }) {
             addSideBtn(inner, b);
             inner.add(Box.createVerticalStrut(3));
         }
@@ -1156,7 +1237,8 @@ public class PhotoEditorFrame extends JFrame {
     // ── Botão de elemento estruturante (grade compacta) ──────────────────────────
     private JButton makeSEButton(String label, String key) {
         JButton btn = new JButton(label) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
@@ -1167,7 +1249,7 @@ public class PhotoEditorFrame extends JFrame {
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
                 if (active) {
                     g2.setColor(new Color(180, 230, 255));
-                    g2.fillRoundRect(0, 3, 3, getHeight()-6, 2, 2);
+                    g2.fillRoundRect(0, 3, 3, getHeight() - 6, 2, 2);
                 }
                 g2.dispose();
                 super.paintComponent(g);
@@ -1183,8 +1265,15 @@ public class PhotoEditorFrame extends JFrame {
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.addActionListener(e -> selectStructElement(key));
         btn.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
-            @Override public void mouseExited (MouseEvent e) { btn.repaint(); }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.repaint();
+            }
         });
         return btn;
     }
@@ -1192,7 +1281,8 @@ public class PhotoEditorFrame extends JFrame {
     // ── Botão de operação morfológica ────────────────────────────────────────────
     private JButton makeMorphButton(String text, String op) {
         JButton btn = new JButton(text) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
@@ -1215,8 +1305,15 @@ public class PhotoEditorFrame extends JFrame {
         btn.setPreferredSize(new Dimension(200, 32));
         btn.addActionListener(e -> applyMorphOp(op));
         btn.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { btn.repaint(); }
-            @Override public void mouseExited (MouseEvent e) { btn.repaint(); }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btn.repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                btn.repaint();
+            }
         });
         return btn;
     }
@@ -1225,7 +1322,9 @@ public class PhotoEditorFrame extends JFrame {
     // MORFOLOGIA — LÓGICA
     // ══════════════════════════════════════════════════════════════════════════
 
-    /** Seleciona SE e aplica threshold (limiar 128) para criar a base morfológica */
+    /**
+     * Seleciona SE e aplica threshold (limiar 128) para criar a base morfológica
+     */
     private void selectStructElement(String key) {
         if (originalImage == null) {
             JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
@@ -1233,15 +1332,20 @@ public class PhotoEditorFrame extends JFrame {
             return;
         }
         selectedStructElement = key;
-        if (seButtons != null) for (JButton b : seButtons) b.repaint();
-        
+        if (seButtons != null)
+            for (JButton b : seButtons)
+                b.repaint();
+
         if (morphThreshEnabled) {
             // Se ativado, binariza a imagem automaticamente no histórico
             applyFilter("THRESHOLD");
         }
     }
 
-    /** Aplica operação morfológica SOBRE a imagem filtrada atual (composição possível) */
+    /**
+     * Aplica operação morfológica SOBRE a imagem filtrada atual (composição
+     * possível)
+     */
     private void applyMorphOp(String op) {
         if (originalImage == null) {
             JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.",
@@ -1258,7 +1362,7 @@ public class PhotoEditorFrame extends JFrame {
         preSliderImage = (filteredImage != null) ? filteredImage : originalImage;
         activeFilter = op;
         repaintButtons();
-        
+
         applyFilterAsync(op, false);
     }
 
@@ -1268,12 +1372,13 @@ public class PhotoEditorFrame extends JFrame {
 
     private void displayImage(BufferedImage img, boolean isInput) {
         JPanel area = getImageArea(isInput);
-        if (area == null) return;
-        int pw = area.getWidth()  > 0 ? area.getWidth()  - 20 : 480;
+        if (area == null)
+            return;
+        int pw = area.getWidth() > 0 ? area.getWidth() - 20 : 480;
         int ph = area.getHeight() > 0 ? area.getHeight() - 20 : 400;
-        double scale = Math.min((double)pw/img.getWidth(), (double)ph/img.getHeight());
+        double scale = Math.min((double) pw / img.getWidth(), (double) ph / img.getHeight());
         Image scaled = img.getScaledInstance(
-                (int)(img.getWidth()*scale), (int)(img.getHeight()*scale), Image.SCALE_SMOOTH);
+                (int) (img.getWidth() * scale), (int) (img.getHeight() * scale), Image.SCALE_SMOOTH);
         area.removeAll();
         JLabel lbl = isInput ? inputImageLabel : outputImageLabel;
         lbl.setIcon(new ImageIcon(scaled));
@@ -1285,7 +1390,8 @@ public class PhotoEditorFrame extends JFrame {
 
     private void clearOutput() {
         JPanel area = getImageArea(false);
-        if (area == null) return;
+        if (area == null)
+            return;
         area.removeAll();
         area.add(outputPlaceholderLabel);
         area.revalidate();
@@ -1295,8 +1401,8 @@ public class PhotoEditorFrame extends JFrame {
     private JPanel getImageArea(boolean isInput) {
         JPanel card = isInput ? inputPanel : outputPanel;
         for (Component c : card.getComponents())
-            if (c instanceof JPanel && ((JPanel)c).getLayout() instanceof GridBagLayout)
-                return (JPanel)c;
+            if (c instanceof JPanel && ((JPanel) c).getLayout() instanceof GridBagLayout)
+                return (JPanel) c;
         return null;
     }
 
@@ -1306,7 +1412,7 @@ public class PhotoEditorFrame extends JFrame {
 
     private void repaintButtons() {
         SwingUtilities.invokeLater(() -> {
-            for (JButton b : new JButton[]{
+            for (JButton b : new JButton[] {
                     btnTranslate, btnAmpliar, btnReduzir, btnRotacionar,
                     btnEspelharH, btnEspelharV, btnConvolucao, btnMediana,
                     btnModa, btnGauss,
@@ -1314,7 +1420,9 @@ public class PhotoEditorFrame extends JFrame {
                     btnMarrHildreth, btnCanny,
                     btnStentiford, btnZhangSuen, btnHolt,
                     btnGrayscale, btnBrilho, btnContraste
-            }) if (b != null) b.repaint();
+            })
+                if (b != null)
+                    b.repaint();
         });
     }
 }

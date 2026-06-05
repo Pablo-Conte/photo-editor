@@ -1,7 +1,7 @@
 package pdi.pablokaue;
 
 public class Main {
-    static void main() {
+    public static void main(String[] args) {
         PhotoEditorFrame janela = new PhotoEditorFrame();
         janela.setVisible(true);
         janela.setSize(800, 600);
