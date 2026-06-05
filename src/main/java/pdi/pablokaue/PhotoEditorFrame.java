@@ -72,7 +72,7 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
     private JButton btnGrayscale, btnBrilho, btnContraste;
 
     // Botões — Desafios
-    private JButton btnReadClock, btnReadBarChart;
+    private JButton btnReadClock, btnReadBarChart, btnCountColors;
 
     // ── Sliders de cor ──────────────────────────────────────────────────────────
     private JSlider sliderBrilho, sliderContraste, sliderThreshold;
@@ -674,6 +674,24 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
             updateStatus("Desafio 1: " + result.time);
         });
         addSideBtn(inner, btnReadClock);
+
+        inner.add(Box.createVerticalStrut(4));
+
+        btnCountColors = makeActionButton("🎨  Ex. 2 - Contar Objetos por Cor", new Color(180, 120, 50));
+        btnCountColors.addActionListener(e -> {
+            if (originalImage == null) {
+                JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.", "Aviso",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
+            ColorObjectChallenge.ColorCountResult result = ColorObjectChallenge.countColorObjects(input);
+            String output = result.toFormattedString();
+            JOptionPane.showMessageDialog(this, output, "Resultado - Objetos por Cor", JOptionPane.INFORMATION_MESSAGE);
+            updateStatus("Desafio 2: " + output);
+        });
+        addSideBtn(inner, btnCountColors);
+
         inner.add(Box.createVerticalStrut(4));
 
         btnReadBarChart = makeActionButton("📊  Ex. 5 - Ler Gráfico", new Color(70, 150, 180));
@@ -698,7 +716,7 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
                     analysis.getMinHeight());
 
             JOptionPane.showMessageDialog(this, message, "Resultado - Ler Gráfico", JOptionPane.INFORMATION_MESSAGE);
-            updateStatus("Desafio 2: " + analysis.getBarHeights().size() + " barras identificadas");
+            updateStatus("Desafio 5: " + analysis.getBarHeights().size() + " barras identificadas");
         });
         addSideBtn(inner, btnReadBarChart);
 
