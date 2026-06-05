@@ -47,8 +47,11 @@ public class ClockChallenge {
         Imgproc.GaussianBlur(binary, blurred, new Size(5, 5), 0);
         notifyListener(listener, "1.3 Blur", blurred);
 
+        Mat grayBlurred = new Mat();
+        Imgproc.GaussianBlur(gray, grayBlurred, new Size(9, 9), 2);
+
         // 2. Detectar círculo externo do relógio
-        int[] clock = clockDetection(src, blurred);
+        int[] clock = clockDetection(src, grayBlurred);
         int clockCx = clock[0], clockCy = clock[1], radius = clock[2];
 
         Mat circleViz = src.clone();
@@ -314,12 +317,12 @@ public class ClockChallenge {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // DETECTAR CÍRCULO DO RELÓGIO (HoughCircles no binário borrado)
+    // DETECTAR CÍRCULO DO RELÓGIO (HoughCircles no grayscale borrado)
     // ─────────────────────────────────────────────────────────────────────────
     private static int[] clockDetection(Mat src, Mat blurred) {
         Mat circles = new Mat();
         Imgproc.HoughCircles(blurred, circles, Imgproc.HOUGH_GRADIENT,
-                1, 400, 50, 100, 100, 1000);
+                1, 400, 50, 40, 100, 500);
 
         int cx = src.cols() / 2, cy = src.rows() / 2, r = Math.min(cx, cy) - 10;
         System.out.println("[clockDetection] círculos encontrados: " + circles.cols());
