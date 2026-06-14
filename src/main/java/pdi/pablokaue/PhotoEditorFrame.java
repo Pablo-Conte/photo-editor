@@ -72,7 +72,7 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
     private JButton btnGrayscale, btnBrilho, btnContraste;
 
     // Botões — Desafios
-    private JButton btnReadClock, btnReadBarChart, btnCountColors, btnReadLetters;
+    private JButton btnReadClock, btnReadBarChart, btnCountColors, btnReadLetters, btnReadTrafficSigns;
 
     // ── Sliders de cor ──────────────────────────────────────────────────────────
     private JSlider sliderBrilho, sliderContraste, sliderThreshold;
@@ -708,6 +708,23 @@ public class PhotoEditorFrame extends JFrame implements ProcessingStepListener {
             updateStatus("Desafio 3: " + output);
         });
         addSideBtn(inner, btnReadLetters);
+
+        inner.add(Box.createVerticalStrut(4));
+
+        btnReadTrafficSigns = makeActionButton("🚦  Ex. 4 - Identificar Placas", new Color(190, 70, 90));
+        btnReadTrafficSigns.addActionListener(e -> {
+            if (originalImage == null) {
+                JOptionPane.showMessageDialog(this, "Carregue uma imagem primeiro.", "Aviso",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            BufferedImage input = (filteredImage != null) ? filteredImage : originalImage;
+            TrafficSignChallenge.TrafficSignResult result = TrafficSignChallenge.identifyTrafficSigns(input);
+            String output = result.toFormattedString();
+            JOptionPane.showMessageDialog(this, output, "Resultado - Identificar Placas", JOptionPane.INFORMATION_MESSAGE);
+            updateStatus("Desafio 4: " + output);
+        });
+        addSideBtn(inner, btnReadTrafficSigns);
 
         inner.add(Box.createVerticalStrut(4));
 
