@@ -2,14 +2,12 @@ package pdi.pablokaue.filters;
 
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
-import net.sourceforge.tess4j.util.LoadLibs;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
-import java.io.File;
 
 import java.util.*;
 
@@ -18,7 +16,7 @@ public class LetterRecognitionChallenge {
     public static class LetterResult {
         public final List<Character> letters;
 
-        LetterResult(Set<Character> detected) {
+        LetterResult(List<Character> detected) {
             letters = new ArrayList<>(detected);
             Collections.sort(letters);
         }
@@ -43,7 +41,7 @@ public class LetterRecognitionChallenge {
 
         BufferedImage processed = preprocess(img);
 
-        Set<Character> detected = new TreeSet<>();
+        List<Character> detected = new ArrayList<>();
         try {
             String raw = runOCR(processed);
             for (char c : raw.toUpperCase().toCharArray()) {
@@ -101,9 +99,7 @@ public class LetterRecognitionChallenge {
     private static String runOCR(BufferedImage img) throws TesseractException {
         Tesseract tess = new Tesseract();
 
-        // Use tessdata bundled inside the tess4j JAR — no system install of -eng needed
-        File tessdata = LoadLibs.extractTessResources("tessdata");
-        tess.setDatapath(tessdata.getParent());
+        tess.setDatapath("/usr/share/tesseract-ocr/5/tessdata");
 
         tess.setLanguage("eng");
         tess.setPageSegMode(11);  // PSM_SPARSE_TEXT: letters scattered on page
